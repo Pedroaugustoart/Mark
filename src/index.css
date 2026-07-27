@@ -355,8 +355,10 @@ body {
 
 /* CHAT COMPONENT (Floating transparent) */
 .chat-container-floating {
-  position: absolute;
+  position: fixed;
   bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 700px;
   height: 280px;
   display: flex;
