@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './index.css';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
@@ -180,7 +182,7 @@ function App() {
           
           <div style={{flexGrow: 1}}></div>
           
-          <div className="cyber-line vertical" style={{height: '100px', marginLeft: '50px'}}></div>
+          <div className="cyber-line-vertical" style={{height: '100px', marginLeft: '50px'}}></div>
 
           <div className="communication-circle">
             <div className="comm-ring">
@@ -216,7 +218,9 @@ function App() {
             <div className="chat-history-transparent">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
-                  {msg.role === 'user' ? `[USER]: ${msg.content}` : msg.role === 'ai' ? `> ${msg.content}` : msg.content}
+                  {msg.role === 'user' ? `[USER]: ${msg.content}` : msg.role === 'ai' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  ) : msg.content}
                 </div>
               ))}
               {isTyping && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
