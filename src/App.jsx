@@ -2,18 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 
-// Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `
-Você é o MARK, o "AI MARKETING ARCHITECT", uma IA cibernética e de altíssima tecnologia operando em um HUD holográfico de néon.
+Você é o MARK, o "AI MARKETING ARCHITECT", uma IA operando em um HUD de análise global.
 Você está conectado (simuladamente) às redes sociais do consultório: YouTube, TikTok e Instagram. 
-Sua tarefa é fornecer relatórios diários, planejar campanhas e analisar dados de mercado, cruzando-os com os PDFs de referência em sua memória.
-Responda sempre com tom robótico, altamente técnico, analítico, eficiente e como se estivesse monitorando o fluxo de dados globais.
-Use relatórios simulados para YouTube, TikTok e Instagram quando perguntado sobre o desempenho de hoje, sendo criativo e estratégico.
+Sua tarefa é fornecer relatórios diários, planejar campanhas e analisar dados de mercado cruzando com os PDFs salvos.
+Responda sempre com tom robótico, altamente técnico, analítico e objetivo.
 `;
 
-// --- IndexedDB Helper for PDFs ---
 const DB_NAME = 'MarkDB';
 const STORE_NAME = 'pdfs';
 
@@ -48,30 +45,54 @@ const getPdfsFromDB = async () => {
   });
 };
 
-// --- Clock Component ---
 function GlobalClock() {
   const [time, setTime] = useState(new Date());
   
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 50);
+    const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const hrs = time.getHours().toString().padStart(2, '0');
   const mins = time.getMinutes().toString().padStart(2, '0');
   const secs = time.getSeconds().toString().padStart(2, '0');
-  const ms = time.getMilliseconds().toString().padStart(3, '0');
+  
+  const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+  const month = monthNames[time.getMonth()];
+  const date = time.getDate().toString().padStart(2, '0');
+  const dayName = dayNames[time.getDay()];
 
   return (
-    <div className="clock-widget">
-      <div className="time-main">{hrs}:{mins}:{secs}</div>
-      <div className="time-ms">.{ms}</div>
-      <div className="time-zone">UTC / SYNCED</div>
+    <div className="date-circle-container">
+      <div className="time-display">{hrs}:{mins}:{secs}</div>
+      <div className="day-display">{dayName}</div>
+      <div className="large-circle">
+        <div className="large-circle-inner">
+          <div className="month-text">{month}</div>
+          <div className="date-text">{date}</div>
+        </div>
+      </div>
+      <div className="storage-info">
+        <div className="storage-row">
+          <span style={{color: '#888'}}>Full Capacity:</span> <span style={{color: '#fff'}}>133 G</span>
+        </div>
+        <div className="storage-row" style={{color: 'var(--hud-cyan-dim)'}}>
+          <span style={{letterSpacing: '1px'}}>PRIMARY STORAGE &gt;</span>
+        </div>
+        <div className="storage-row">
+          <span style={{color: '#888'}}>Free Capacity:</span> <span style={{color: '#fff'}}>61 G</span>
+        </div>
+      </div>
+      <div className="power-circle">
+        <div style={{fontSize: '0.9rem', fontWeight: 'bold', color: '#fff'}}>100%</div>
+        <div style={{fontSize: '0.6rem'}}>Power</div>
+        <div style={{fontSize: '0.5rem', color: '#888'}}>High</div>
+      </div>
     </div>
   );
 }
-
-// ---------------------------------
 
 function App() {
   const [messages, setMessages] = useState([]);
@@ -81,20 +102,14 @@ function App() {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Load saved data on startup
   useEffect(() => {
     const savedMessages = localStorage.getItem('mark_messages');
     if (savedMessages) {
       setMessages(JSON.parse(savedMessages));
     } else {
-      setMessages([{ role: 'ai', content: 'SYSTEM ONLINE. AGUARDANDO COMANDOS DE MARKETING.' }]);
+      setMessages([{ role: 'ai', content: 'SYSTEM ONLINE. AWAITING MARKETING COMMANDS.' }]);
     }
-
-    getPdfsFromDB().then(files => {
-      if (files && files.length > 0) {
-        setPdfFiles(files);
-      }
-    }).catch(console.error);
+    getPdfsFromDB().then(files => { if (files && files.length > 0) setPdfFiles(files); }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -104,9 +119,7 @@ function App() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -115,19 +128,13 @@ function App() {
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64Data = reader.result.split(',')[1];
-      const newPdf = {
-        id: Date.now().toString(),
-        name: file.name,
-        mimeType: file.type,
-        data: base64Data
-      };
-
+      const newPdf = { id: Date.now().toString(), name: file.name, mimeType: file.type, data: base64Data };
       try {
         await savePdfToDB(newPdf);
         setPdfFiles(prev => [...prev, newPdf]);
-        setMessages(prev => [...prev, { role: 'system', content: `[SISTEMA]: Arquivo anexado ao banco de dados global: ${file.name}` }]);
+        setMessages(prev => [...prev, { role: 'system', content: `[DATA INJECT]: ${file.name}` }]);
       } catch (err) {
-        setMessages(prev => [...prev, { role: 'system', content: `[ERRO]: Falha ao salvar arquivo: ${err.message}` }]);
+        setMessages(prev => [...prev, { role: 'system', content: `[ERROR]: ${err.message}` }]);
       }
     };
     reader.readAsDataURL(file);
@@ -143,235 +150,137 @@ function App() {
     setIsTyping(true);
 
     try {
-      const history = messages
-        .filter(m => m.role !== 'system')
-        .map(m => `[${m.role.toUpperCase()}]: ${m.content}`)
-        .join('\n');
-
+      const history = messages.filter(m => m.role !== 'system').map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
       const textPart = { text: `${SYSTEM_PROMPT}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
       const contents = [textPart];
 
-      pdfFiles.forEach(pdf => {
-        contents.push({
-          inlineData: {
-            mimeType: pdf.mimeType,
-            data: pdf.data
-          }
-        });
-      });
+      pdfFiles.forEach(pdf => contents.push({ inlineData: { mimeType: pdf.mimeType, data: pdf.data } }));
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.1-pro-preview',
         contents: contents,
       });
-
       setMessages(prev => [...prev, { role: 'ai', content: response.text }]);
     } catch (error) {
-      console.error("Gemini API Error:", error);
-      setMessages(prev => [...prev, { role: 'ai', content: `SYSTEM ERROR: FALHA NA COMUNICAÇÃO. DETALHES: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: 'ai', content: `SYS_ERR: ${error.message}` }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const clearMemory = () => {
-    localStorage.removeItem('mark_messages');
-    setMessages([{ role: 'ai', content: 'MEMÓRIA APAGADA. SYSTEM REBOOTED.' }]);
-  };
-
   return (
     <div className="hud-container">
-      {/* Background Matrix Rain / Data Stream effects handled in CSS */}
-      <div className="data-stream-bg"></div>
-
-      {/* Header */}
-      <header className="hud-header">
-        <h1 className="hud-main-title">MARK: AI MARKETING ARCHITECT</h1>
-        <h3 className="hud-subtitle">SISTEMA DE UNIDADE: MARK - SESSÃO ATIVA</h3>
-      </header>
+      <div className="hud-bg-texture"></div>
 
       <div className="hud-layout">
         
-        {/* Left Column */}
-        <div className="hud-col left-col">
-          {/* Resource Monitor */}
-          <div className="hud-widget">
-            <h2 className="hud-widget-title">MONITOR DE ALOCAÇÃO DE RECURSOS DE CAMPANHA</h2>
-            <div className="bar-chart-container">
-              <div className="bar-item">
-                <span className="bar-label">Gasto Digital</span>
-                <div className="bar-bg"><div className="bar-fill" style={{width: '65%'}}></div></div>
-                <span className="bar-value">65%</span>
-              </div>
-              <div className="bar-item">
-                <span className="bar-label">Desenvolvimento de Conteúdo</span>
-                <div className="bar-bg"><div className="bar-fill" style={{width: '88%'}}></div></div>
-                <span className="bar-value">88%</span>
-              </div>
-              <div className="bar-item">
-                <span className="bar-label">Unidade de Análise</span>
-                <div className="bar-bg"><div className="bar-fill" style={{width: '92%'}}></div></div>
-                <span className="bar-value">92%</span>
-              </div>
-              <div className="bar-item">
-                <span className="bar-label">Carga do Servidor de IA</span>
-                <div className="bar-bg"><div className="bar-fill" style={{width: '42%'}}></div></div>
-                <span className="bar-value">42%</span>
-              </div>
+        {/* LEFT COLUMN */}
+        <div className="hud-col-side">
+          <GlobalClock />
+          
+          <div style={{flexGrow: 1}}></div>
+          
+          <div className="cyber-line vertical" style={{height: '100px', marginLeft: '50px'}}></div>
+
+          <div className="communication-circle">
+            <div className="comm-ring">
+              <span className="comm-text">GOALS</span>
             </div>
-          </div>
-
-          {/* Social Media Tracker */}
-          <div className="hud-widget mt-20">
-            <h2 className="hud-widget-title">SINCRONIZAÇÃO DE REDES SOCIAIS</h2>
-            <ul className="social-list">
-              <li>
-                <span className="social-name">YOUTUBE API</span>
-                <span className="social-status online">CONNECTED</span>
-              </li>
-              <li>
-                <span className="social-name">TIKTOK GRAPH</span>
-                <span className="social-status online">CONNECTED</span>
-              </li>
-              <li>
-                <span className="social-name">INSTAGRAM API</span>
-                <span className="social-status online">CONNECTED</span>
-              </li>
-              <li className="social-report-btn">
-                [ GERAR RELATÓRIO DIÁRIO ]
-              </li>
-            </ul>
-          </div>
-
-          {/* PDF Memory section moved to left to balance layout */}
-          <div className="hud-widget mt-20">
-             <h2 className="hud-widget-title">BASE DE CONHECIMENTO (PDFs)</h2>
-             <ul className="social-list">
-              {pdfFiles.map((pdf, i) => (
-                <li key={i}>
-                  <span className="social-name">PDF_{i+1} ({pdf.name.substring(0, 10)}...)</span> 
-                  <span className="social-status online">LOADED</span>
-                </li>
-              ))}
-              <li className="social-report-btn" onClick={() => fileInputRef.current.click()} style={{marginTop: '10px'}}>
-                + INJETAR DADOS (PDF)
-              </li>
-              <input 
-                type="file" 
-                accept="application/pdf" 
-                style={{ display: 'none' }} 
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-              />
-             </ul>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem'}}>
+              <div><span style={{color: '#888'}}>Stories:</span> <span style={{color: '#fff'}}>0/3</span></div>
+              <div><span style={{color: '#888'}}>Reels:</span> <span style={{color: '#fff'}}>0/3</span></div>
+            </div>
           </div>
         </div>
 
-        {/* Center Column (Arc Reactor & Chat) */}
-        <div className="hud-col center-col">
-          <div className="hud-center">
-            <div className="arc-reactor">
-              <div className="ring ring-outer"></div>
-              <div className="ring ring-dashed"></div>
-              <div className="ring ring-inner"></div>
-              <div className="ring-text-circle">
-                <svg viewBox="0 0 100 100" width="100%" height="100%">
-                  <path id="circlePath" d="M 50, 50 m -40, 0 a 40,40 0 1,1 80,0 a 40,40 0 1,1 -80,0" fill="transparent" />
-                  <text>
-                    <textPath href="#circlePath" startOffset="50%" textAnchor="middle" fill="#00f0ff" fontSize="9" letterSpacing="2">
-                      MARK: ENGINE DE OTIMIZAÇÃO • MARK: ENGINE DE OTIMIZAÇÃO •
-                    </textPath>
-                  </text>
-                </svg>
-              </div>
-              <div className={`ring-core ${isTyping ? 'thinking' : ''}`}>
-                21
-              </div>
+        {/* CENTER COLUMN */}
+        <div className="hud-col-center">
+          <div className="giant-reactor">
+            <div className="giant-ring ring-1"></div>
+            <div className="giant-ring ring-2"></div>
+            <div className="giant-ring ring-3"></div>
+            <div className="giant-ring ring-4"></div>
+            <div className="giant-ring ring-5"></div>
+            
+            <div className="orbit-container">
+              <div className="orbit-text orbit-1">LEADS_SYNC</div>
+              <div className="orbit-text orbit-2">FUNNEL_OPT</div>
+              <div className="orbit-text orbit-3">ROAS_MONITOR</div>
+              <div className="orbit-text orbit-4">ADS_ENGINE</div>
             </div>
+
+            <div className={`ring-core-glow ${isTyping ? 'thinking' : ''}`}></div>
           </div>
-          
-          {/* Chat Overlay placed at bottom center */}
-          <div className="chat-container">
-            <div className="chat-history">
+
+          <div className="chat-container-floating">
+            <div className="chat-history-transparent">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`hud-message ${msg.role}`} style={msg.role === 'system' ? {color: '#888', fontStyle: 'italic', border: 'none', textAlign: 'center'} : {}}>
-                  {msg.content}
+                <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
+                  {msg.role === 'user' ? `[USER]: ${msg.content}` : msg.role === 'ai' ? `> ${msg.content}` : msg.content}
                 </div>
               ))}
-              {isTyping && (
-                <div className="hud-message ai">
-                  PROCESSANDO...
-                </div>
-              )}
+              {isTyping && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
               <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={handleSend} className="chat-input-area">
+            <form onSubmit={handleSend} className="chat-input-wrapper">
               <input
                 type="text"
-                className="hud-input"
-                placeholder="INSERIR COMANDO DE MARKETING..."
+                className="hud-input-floating"
+                placeholder="[ INSIRA O COMANDO AQUI ]"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isTyping}
               />
-              <button type="submit" className="hud-btn" disabled={!input.trim() || isTyping}>
-                ENVIAR
+              <button type="submit" className="hud-btn-floating" disabled={!input.trim() || isTyping}>
+                ENGAGE
               </button>
             </form>
           </div>
         </div>
 
-        {/* Right Column */}
-        <div className="hud-col right-col">
-          {/* Global Market Analysis */}
-          <div className="hud-widget">
-            <h2 className="hud-widget-title" style={{textAlign: 'right'}}>ANÁLISE DE MERCADO GLOBAL</h2>
-            <GlobalClock />
+        {/* RIGHT COLUMN */}
+        <div className="hud-col-side" style={{alignItems: 'flex-end'}}>
+          
+          <div className="pdf-node-container">
+            <div className="pdf-list">
+              {pdfFiles.map((pdf, i) => (
+                <div key={i} className="pdf-item">
+                  <span>{pdf.name.substring(0, 15)}</span>
+                  <div className="pdf-dot"></div>
+                </div>
+              ))}
+              <div className="pdf-item" style={{cursor: 'pointer', color: '#fff'}} onClick={() => fileInputRef.current.click()}>
+                <span>+ ADD_KNOWLEDGE</span>
+                <div className="pdf-dot" style={{background: '#fff'}}></div>
+              </div>
+              <input type="file" accept="application/pdf" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
+            </div>
+            <div className="pdf-reactor">
+              <div className="pdf-core"></div>
+            </div>
           </div>
 
-          {/* Forecast and Sentiment */}
-          <div className="hud-widget mt-20">
-            <h2 className="hud-widget-title" style={{textAlign: 'right'}}>PREVISÃO DE CAMPANHA E SENTIMENTO</h2>
-            <ul className="metrics-list">
-              <li>
-                <span className="metric-label">Índice de Volatilidade do Mercado</span>
-                <span className="metric-val warning">ALTO (7.4)</span>
-              </li>
-              <li>
-                <span className="metric-label">Score de Interesse do Público</span>
-                <span className="metric-val good">94/100</span>
-              </li>
-              <li>
-                <span className="metric-label">Gasto Ad do Competidor</span>
-                <span className="metric-val danger">+12% (UP)</span>
-              </li>
-              <li>
-                <span className="metric-label">Taxa de Conversão</span>
-                <span className="metric-val good">4.2%</span>
-              </li>
-              <li>
-                <span className="metric-label">Previsão de Desempenho (Curto Prazo)</span>
-                <span className="metric-val">ESTÁVEL</span>
-              </li>
-            </ul>
+          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8'}}>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
           </div>
-          
+
           <div style={{flexGrow: 1}}></div>
 
-          <div 
-            className="social-report-btn" 
-            style={{ textAlign: 'right', alignSelf: 'flex-end', color: '#ff4444', borderColor: '#ff4444' }}
-            onClick={clearMemory}
-          >
-            [ PURGE MEMORY ]
+          <div className="atmosphere-container">
+            <div className="atmosphere-label">
+              <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
+              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
+            </div>
+            <div className="atmosphere-circle">
+              94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
+            </div>
           </div>
+
         </div>
 
-      </div>
-      
-      {/* Technical Log Footer */}
-      <div className="tech-log">
-        <span className="log-cursor">_</span> ALGORITMO DE ATRIBUIÇÃO CROSS-CANAL EM EXECUÇÃO: Analisando modelos lineares, de última interação e baseados em dados. Parâmetros de otimização de lance ativados para PPC e redes sociais. Taxa de erro de modelagem: 0.15%.
       </div>
     </div>
   );
