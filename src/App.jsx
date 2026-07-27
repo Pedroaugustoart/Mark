@@ -158,13 +158,34 @@ function App() {
 
       pdfFiles.forEach(pdf => contents.push({ inlineData: { mimeType: pdf.mimeType, data: pdf.data } }));
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: contents,
-      });
+      let response;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-3.5-flash',
+            contents: contents,
+          });
+          break; // Success
+        } catch (err) {
+          if (err.message.includes('503') && retries > 1) {
+            retries--;
+            await new Promise(r => setTimeout(r, 3000)); // Wait 3s before retrying
+          } else {
+            throw err;
+          }
+        }
+      }
+
       setMessages(prev => [...prev, { role: 'ai', content: response.text }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'ai', content: `SYS_ERR: ${error.message}` }]);
+      let errorMsg = error.message;
+      if (errorMsg.includes('503')) {
+        errorMsg = "Servidores do Google em alta demanda (Erro 503). Por favor, tente novamente em alguns instantes.";
+      } else if (errorMsg.includes('429')) {
+        errorMsg = "Cota da API excedida. Verifique o faturamento no Google AI Studio.";
+      }
+      setMessages(prev => [...prev, { role: 'ai', content: `[ FALHA DE CONEXÃO ]: ${errorMsg}` }]);
     } finally {
       setIsTyping(false);
     }
