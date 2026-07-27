@@ -434,3 +434,10 @@ body {
 ::-webkit-scrollbar { width: 2px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--hud-cyan-dim); }
+
+/* Markdown Styles */
+.chat-msg.ai p { margin-bottom: 10px; }
+.chat-msg.ai strong { color: #fff; text-shadow: 0 0 5px var(--hud-cyan); font-weight: bold; }
+.chat-msg.ai ul, .chat-msg.ai ol { margin-left: 20px; margin-bottom: 10px; }
+.chat-msg.ai li { margin-bottom: 5px; }
+.chat-msg.ai a { color: var(--hud-cyan); text-decoration: underline; }
