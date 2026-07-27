@@ -190,7 +190,7 @@ function App() {
       while (retries > 0) {
         try {
           response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-flash-latest',
             contents: contents,
           });
           break; // Success
