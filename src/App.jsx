@@ -12,37 +12,100 @@ Responda sempre de forma técnica, analítica, prestativa e como uma inteligênc
 Se receber documentos (PDFs), analise-os e use as informações para fundamentar suas respostas.
 `;
 
+// --- IndexedDB Helper for PDFs ---
+const DB_NAME = 'MarkDB';
+const STORE_NAME = 'pdfs';
+
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
+    };
+  });
+};
+
+const savePdfToDB = async (pdf) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(pdf);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+const getPdfsFromDB = async () => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// ---------------------------------
+
 function App() {
-  const [messages, setMessages] = useState([
-    { role: 'ai', content: 'SYSTEM ONLINE. AGUARDANDO COMANDOS DE MARKETING.' }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [pdfFiles, setPdfFiles] = useState([]); // Store uploaded PDFs as base64
+  const [pdfFiles, setPdfFiles] = useState([]);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Load saved data on startup
+  useEffect(() => {
+    const savedMessages = localStorage.getItem('mark_messages');
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages));
+    } else {
+      setMessages([{ role: 'ai', content: 'SYSTEM ONLINE. AGUARDANDO COMANDOS DE MARKETING.' }]);
+    }
+
+    getPdfsFromDB().then(files => {
+      if (files && files.length > 0) {
+        setPdfFiles(files);
+      }
+    }).catch(console.error);
+  }, []);
+
+  // Save messages whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('mark_messages', JSON.stringify(messages));
+    }
+    scrollToBottom();
+  }, [messages, isTyping]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
-
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const base64Data = reader.result.split(',')[1];
-      setPdfFiles(prev => [...prev, {
+      const newPdf = {
+        id: Date.now().toString(), // unique id
         name: file.name,
         mimeType: file.type,
         data: base64Data
-      }]);
-      setMessages(prev => [...prev, { role: 'system', content: `[SISTEMA]: Arquivo anexado ao banco de dados: ${file.name}` }]);
+      };
+
+      try {
+        await savePdfToDB(newPdf);
+        setPdfFiles(prev => [...prev, newPdf]);
+        setMessages(prev => [...prev, { role: 'system', content: `[SISTEMA]: Arquivo anexado ao banco de dados global: ${file.name}` }]);
+      } catch (err) {
+        setMessages(prev => [...prev, { role: 'system', content: `[ERRO]: Falha ao salvar arquivo: ${err.message}` }]);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -57,17 +120,14 @@ function App() {
     setIsTyping(true);
 
     try {
-      // Build conversation history for context
       const history = messages
         .filter(m => m.role !== 'system')
         .map(m => `[${m.role.toUpperCase()}]: ${m.content}`)
         .join('\n');
 
       const textPart = { text: `${SYSTEM_PROMPT}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
-      
       const contents = [textPart];
 
-      // Append PDFs as inline data parts if they exist
       pdfFiles.forEach(pdf => {
         contents.push({
           inlineData: {
@@ -85,10 +145,16 @@ function App() {
       setMessages(prev => [...prev, { role: 'ai', content: response.text }]);
     } catch (error) {
       console.error("Gemini API Error:", error);
-      setMessages(prev => [...prev, { role: 'ai', content: 'SYSTEM ERROR: FALHA NA COMUNICAÇÃO COM O NÚCLEO DE IA.' }]);
+      // Imprime o erro real na tela para podermos debugar!
+      setMessages(prev => [...prev, { role: 'ai', content: `SYSTEM ERROR: FALHA NA COMUNICAÇÃO. DETALHES: ${error.message}` }]);
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const clearMemory = () => {
+    localStorage.removeItem('mark_messages');
+    setMessages([{ role: 'ai', content: 'MEMÓRIA APAGADA. SYSTEM REBOOTED.' }]);
   };
 
   return (
@@ -170,7 +236,7 @@ function App() {
               
               {pdfFiles.map((pdf, i) => (
                 <li key={i} className="hud-list-item" style={{ width: '100%', color: 'var(--hud-cyan)' }}>
-                  <span>PDF_{i+1}</span> <span>LOADED</span>
+                  <span>PDF_{i+1} ({pdf.name.substring(0, 10)}...)</span> <span>SAVED</span>
                 </li>
               ))}
 
@@ -179,7 +245,7 @@ function App() {
                 style={{ width: '100%', borderBottom: 'none', cursor: 'pointer', color: '#fff', display: 'flex', justifyContent: 'flex-end' }}
                 onClick={() => fileInputRef.current.click()}
               >
-                + ANEXAR PDF
+                + ANEXAR PDF PERMANENTE
               </li>
               <input 
                 type="file" 
@@ -188,6 +254,13 @@ function App() {
                 ref={fileInputRef}
                 onChange={handleFileUpload}
               />
+              <li 
+                className="hud-list-item" 
+                style={{ width: '100%', borderBottom: 'none', cursor: 'pointer', color: '#ff4444', display: 'flex', justifyContent: 'flex-end', fontSize: '0.7rem', marginTop: '10px' }}
+                onClick={clearMemory}
+              >
+                [ APAGAR MEMÓRIA DA SESSÃO ]
+              </li>
             </ul>
           </div>
         </div>

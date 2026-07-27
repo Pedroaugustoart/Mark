@@ -209,7 +209,7 @@ body {
 }
 
 .chat-history {
-  height: 250px;
+  height: 150px;
   overflow-y: auto;
   padding: 15px;
   display: flex;
