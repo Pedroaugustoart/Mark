@@ -157,7 +157,7 @@ function App() {
       pdfFiles.forEach(pdf => contents.push({ inlineData: { mimeType: pdf.mimeType, data: pdf.data } }));
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-3.5-flash',
         contents: contents,
       });
       setMessages(prev => [...prev, { role: 'ai', content: response.text }]);
