@@ -6,9 +6,10 @@ import './index.css';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-const SYSTEM_PROMPT = `
+const getSystemPrompt = (driveLink) => `
 Você é o MARK, o "AI MARKETING ARCHITECT", uma IA operando em um HUD de análise global.
 Você está conectado (simuladamente) às redes sociais do consultório: YouTube, TikTok e Instagram. 
+O link da nuvem/Drive com os vídeos editados da campanha atual é: "${driveLink || 'NENHUM LINK DEFINIDO'}".
 Sua tarefa é fornecer relatórios diários, planejar campanhas e analisar dados de mercado cruzando com os PDFs salvos.
 Responda sempre com tom robótico, altamente técnico, analítico e objetivo.
 `;
@@ -101,6 +102,7 @@ function App() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [pdfFiles, setPdfFiles] = useState([]);
+  const [driveLink, setDriveLink] = useState('');
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -111,6 +113,9 @@ function App() {
     } else {
       setMessages([{ role: 'ai', content: 'SYSTEM ONLINE. AWAITING MARKETING COMMANDS.' }]);
     }
+    const savedLink = localStorage.getItem('mark_drive_link');
+    if (savedLink) setDriveLink(savedLink);
+    
     getPdfsFromDB().then(files => { if (files && files.length > 0) setPdfFiles(files); }).catch(console.error);
   }, []);
 
@@ -153,7 +158,7 @@ function App() {
 
     try {
       const history = messages.filter(m => m.role !== 'system').map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
-      const textPart = { text: `${SYSTEM_PROMPT}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
+      const textPart = { text: `${getSystemPrompt(driveLink)}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
       const contents = [textPart];
 
       pdfFiles.forEach(pdf => contents.push({ inlineData: { mimeType: pdf.mimeType, data: pdf.data } }));
@@ -200,6 +205,37 @@ function App() {
         {/* LEFT COLUMN */}
         <div className="hud-col-side">
           <GlobalClock />
+          
+          <div className="drive-sync-widget" style={{ marginTop: '30px' }}>
+            <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
+              &gt; CLOUD_MEDIA ASSETS
+            </div>
+            <input 
+              type="text" 
+              value={driveLink} 
+              onChange={(e) => {
+                setDriveLink(e.target.value);
+                localStorage.setItem('mark_drive_link', e.target.value);
+              }}
+              placeholder="[ INSERIR URL DO DRIVE AQUI ]"
+              style={{
+                width: '100%',
+                background: 'rgba(0, 229, 255, 0.05)',
+                border: '1px solid var(--hud-cyan-dim)',
+                color: '#fff',
+                padding: '10px',
+                fontFamily: 'var(--font-main)',
+                fontSize: '0.75rem',
+                outline: 'none',
+                boxShadow: 'inset 0 0 10px rgba(0, 229, 255, 0.1)'
+              }}
+            />
+            {driveLink && (
+              <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--color-good)', letterSpacing: '1px'}}>
+                STATUS: ENCRYPTED LINK SYNCED
+              </div>
+            )}
+          </div>
           
           <div style={{flexGrow: 1}}></div>
           
