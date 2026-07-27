@@ -114,6 +114,7 @@ function App() {
   const [pdfFiles, setPdfFiles] = useState([]);
   const [driveLink, setDriveLink] = useState('');
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -246,6 +247,48 @@ function App() {
         </div>
       )}
 
+      {showHistoryModal && (
+        <div className="cyber-modal-overlay">
+          <div className="cyber-modal" style={{width: '800px', height: '80vh'}}>
+            <div className="cyber-modal-header">
+              <h2>&gt; SYSTEM_LOGS / REQUEST_HISTORY</h2>
+              <button onClick={() => setShowHistoryModal(false)} className="cyber-modal-close">X</button>
+            </div>
+            <div className="cyber-modal-body" style={{maxHeight: 'calc(80vh - 60px)'}}>
+              {messages.length === 0 ? (
+                <div style={{color: '#888', textAlign: 'center'}}>NO LOGS FOUND.</div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
+                  {messages.map((msg, idx) => (
+                    <div key={idx} style={{
+                      padding: '15px', 
+                      borderLeft: `3px solid ${msg.role === 'user' ? '#fff' : msg.role === 'system' ? '#888' : 'var(--hud-cyan)'}`,
+                      background: 'rgba(0,0,0,0.6)',
+                      boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)'
+                    }}>
+                      <div style={{
+                        color: msg.role === 'user' ? '#fff' : msg.role === 'system' ? '#888' : 'var(--hud-cyan)', 
+                        fontSize: '0.75rem', 
+                        letterSpacing: '1px',
+                        marginBottom: '10px',
+                        textTransform: 'uppercase'
+                      }}>
+                        [{msg.role === 'user' ? 'USER_COMMAND' : msg.role === 'system' ? 'SYSTEM_ALERT' : 'MARK_RESPONSE'}]
+                      </div>
+                      <div className="chat-msg ai" style={{fontSize: '0.9rem', lineHeight: '1.5'}}>
+                        {msg.role === 'ai' ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        ) : msg.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="hud-layout">
         
         {/* LEFT COLUMN */}
@@ -285,7 +328,21 @@ function App() {
           
           <div style={{flexGrow: 1}}></div>
           
-          <div className="cyber-line-vertical" style={{height: '100px', marginLeft: '50px'}}></div>
+          <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
+
+          <div className="communication-circle" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
+            <div className="comm-ring" style={{width: '70px', height: '70px', borderColor: '#fff'}}>
+              <span className="comm-text" style={{fontSize: '0.6rem', color: '#fff'}}>LOGS</span>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem'}}>
+              <span style={{color: '#fff'}}>REQUEST HISTORY</span>
+              <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>
+                {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
+              </span>
+            </div>
+          </div>
+
+          <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
           <div className="communication-circle">
             <div className="comm-ring">
