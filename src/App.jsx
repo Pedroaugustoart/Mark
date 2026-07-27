@@ -48,6 +48,16 @@ const getPdfsFromDB = async () => {
   });
 };
 
+const deletePdfFromDB = async (id) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
 function GlobalClock() {
   const [time, setTime] = useState(new Date());
   
@@ -103,6 +113,7 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [pdfFiles, setPdfFiles] = useState([]);
   const [driveLink, setDriveLink] = useState('');
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -145,6 +156,16 @@ function App() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleDeletePdf = async (id) => {
+    try {
+      await deletePdfFromDB(id);
+      setPdfFiles(prev => prev.filter(pdf => pdf.id !== id));
+      setMessages(prev => [...prev, { role: 'system', content: `[DATA PURGED]: ID ${id}` }]);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleSend = async (e) => {
@@ -199,6 +220,31 @@ function App() {
   return (
     <div className="hud-container">
       <div className="hud-bg-texture"></div>
+
+      {showPdfModal && (
+        <div className="cyber-modal-overlay">
+          <div className="cyber-modal">
+            <div className="cyber-modal-header">
+              <h2>&gt; KNOWLEDGE_BASE_ARCHIVE</h2>
+              <button onClick={() => setShowPdfModal(false)} className="cyber-modal-close">X</button>
+            </div>
+            <div className="cyber-modal-body">
+              {pdfFiles.length === 0 ? (
+                <div style={{color: '#888', textAlign: 'center'}}>DATABASE EMPTY. NO PDFs INJECTED.</div>
+              ) : (
+                <ul className="pdf-manage-list">
+                  {pdfFiles.map((pdf) => (
+                    <li key={pdf.id}>
+                      <span className="pdf-name">{pdf.name}</span>
+                      <button onClick={() => handleDeletePdf(pdf.id)} className="pdf-del-btn">PURGE</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="hud-layout">
         
@@ -313,6 +359,10 @@ function App() {
               <div className="pdf-item" style={{cursor: 'pointer', color: '#fff'}} onClick={() => fileInputRef.current.click()}>
                 <span>+ ADD_KNOWLEDGE</span>
                 <div className="pdf-dot" style={{background: '#fff'}}></div>
+              </div>
+              <div className="pdf-item" style={{cursor: 'pointer', color: 'var(--hud-cyan-dim)', marginTop: '5px'}} onClick={() => setShowPdfModal(true)}>
+                <span>&gt; MANAGE_DATABASE</span>
+                <div className="pdf-dot" style={{background: 'var(--hud-cyan-dim)'}}></div>
               </div>
               <input type="file" accept="application/pdf" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
             </div>
