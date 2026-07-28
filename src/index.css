@@ -166,7 +166,7 @@ body {
   margin-left: 20px;
 }
 
-/* BOTTOM LEFT: METAS SEMANAIS */
+/* BOTTOM LEFT: METAS SEMANAIS / GOALS */
 .communication-circle {
   display: flex;
   align-items: center;
@@ -187,6 +187,72 @@ body {
 }
 .comm-text {
   transform: rotate(-45deg);
+}
+
+.goals-widget {
+  display: flex;
+  flex-direction: column;
+}
+
+.tasks-list-container {
+  max-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-right: 5px;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid var(--hud-cyan-dim);
+  padding: 8px;
+  border-radius: 4px;
+  gap: 10px;
+}
+
+.task-checkbox {
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid var(--hud-cyan);
+  color: var(--hud-cyan);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+.task-checkbox.checked {
+  background: var(--hud-cyan);
+  color: #000;
+  box-shadow: 0 0 5px var(--hud-cyan);
+}
+
+.task-name {
+  flex-grow: 1;
+  font-size: 0.75rem;
+  color: #fff;
+}
+.task-name.done {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.task-delete {
+  background: transparent;
+  border: none;
+  color: #ff0044;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.task-delete:hover {
+  text-shadow: 0 0 5px #ff0044;
 }
 
 /* TOP RIGHT: PDF REACTOR */

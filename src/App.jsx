@@ -20,6 +20,8 @@ O link da nuvem/Drive com os vídeos editados da campanha atual é: "${driveLink
 
 Sua tarefa é fornecer relatórios diários, planejar campanhas e analisar dados de mercado cruzando com os PDFs salvos.
 Responda sempre com tom robótico, altamente técnico, analítico e objetivo.
+
+REGRA DE METAS: Sempre que você criar um roteiro de vídeo, Reels ou Story, você DEVE incluir no final da sua mensagem a tag oculta [TASK: Nome do Roteiro] para que o sistema cadastre automaticamente como uma meta diária para gravação. Exemplo: [TASK: Reels sobre Clareamento Dental]
 `;
 
 const DB_NAME = 'MarkDB';
@@ -121,6 +123,7 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [pdfFiles, setPdfFiles] = useState([]);
   const [driveLink, setDriveLink] = useState('');
+  const [tasks, setTasks] = useState([]);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const messagesEndRef = useRef(null);
@@ -135,6 +138,8 @@ function App() {
     }
     const savedLink = localStorage.getItem('mark_drive_link');
     if (savedLink) setDriveLink(savedLink);
+    const savedTasks = localStorage.getItem('mark_tasks');
+    if (savedTasks) setTasks(JSON.parse(savedTasks));
     
     getPdfsFromDB().then(files => { if (files && files.length > 0) setPdfFiles(files); }).catch(console.error);
     
@@ -194,8 +199,9 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
     if (messages.length > 0) {
       localStorage.setItem('mark_messages', JSON.stringify(messages));
     }
+    localStorage.setItem('mark_tasks', JSON.stringify(tasks));
     scrollToBottom();
-  }, [messages, isTyping]);
+  }, [messages, tasks, isTyping]);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -226,6 +232,14 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const toggleTask = (id) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  const deleteTask = (id) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   const handleSend = async (e) => {
@@ -263,7 +277,21 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         }
       }
 
-      setMessages(prev => [...prev, { role: 'ai', content: response.text }]);
+      let aiText = response.text;
+      const taskRegex = /\[TASK:\s*(.+?)\]/g;
+      let match;
+      const newTasks = [];
+      while ((match = taskRegex.exec(aiText)) !== null) {
+        newTasks.push({ id: Date.now().toString() + Math.random(), name: match[1].trim(), completed: false });
+      }
+      
+      aiText = aiText.replace(taskRegex, '').trim();
+
+      if (newTasks.length > 0) {
+        setTasks(prev => [...prev, ...newTasks]);
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
     } catch (error) {
       let errorMsg = error.message;
       if (errorMsg.includes('503')) {
@@ -403,13 +431,33 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="communication-circle">
-            <div className="comm-ring">
-              <span className="comm-text">GOALS</span>
+          <div className="goals-widget">
+            <div className="communication-circle" style={{marginBottom: '10px'}}>
+              <div className="comm-ring" style={{borderColor: 'var(--hud-cyan)'}}>
+                <span className="comm-text" style={{color: 'var(--hud-cyan)'}}>GOALS</span>
+              </div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem'}}>
+                <span style={{color: '#fff'}}>TODAY'S CAMPAIGN</span>
+                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>
+                  {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
+                </span>
+              </div>
             </div>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.8rem'}}>
-              <div><span style={{color: '#888'}}>Stories:</span> <span style={{color: '#fff'}}>0/3</span></div>
-              <div><span style={{color: '#888'}}>Reels:</span> <span style={{color: '#fff'}}>0/3</span></div>
+            
+            <div className="tasks-list-container">
+              {tasks.length === 0 ? (
+                <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
+              ) : (
+                tasks.map(task => (
+                  <div key={task.id} className="task-item">
+                    <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
+                      {task.completed ? '✓' : ''}
+                    </button>
+                    <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
+                    <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
