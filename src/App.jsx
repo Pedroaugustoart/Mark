@@ -13,6 +13,7 @@ const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
 
 function DraggableWidget({ id, isLocked, children }) {
+  const nodeRef = useRef(null);
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem(`widget_pos_${id}`);
     return saved ? JSON.parse(saved) : { x: 0, y: 0 };
@@ -37,8 +38,9 @@ function DraggableWidget({ id, isLocked, children }) {
   };
 
   return (
-    <Draggable disabled={isLocked} defaultPosition={position} onStop={handleStop} handle=".drag-handle">
+    <Draggable nodeRef={nodeRef} disabled={isLocked} defaultPosition={position} onStop={handleStop} handle=".drag-handle">
       <div 
+        ref={nodeRef}
         className={!isLocked ? 'draggable-unlocked' : ''}
         style={{ 
           position: 'relative', 
