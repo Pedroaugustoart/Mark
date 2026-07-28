@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Draggable from 'react-draggable';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,6 +11,80 @@ import './index.css';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
+
+function DraggableWidget({ id, isLocked, children }) {
+  const [position, setPosition] = useState(() => {
+    const saved = localStorage.getItem(`widget_pos_${id}`);
+    return saved ? JSON.parse(saved) : { x: 0, y: 0 };
+  });
+  const [size, setSize] = useState(() => {
+    const savedSize = localStorage.getItem(`widget_size_${id}`);
+    return savedSize ? JSON.parse(savedSize) : null;
+  });
+
+  const handleStop = (e, data) => {
+    const newPos = { x: data.x, y: data.y };
+    setPosition(newPos);
+    localStorage.setItem(`widget_pos_${id}`, JSON.stringify(newPos));
+  };
+
+  const handleResize = (e) => {
+    if (!isLocked && e.currentTarget) {
+      const newSize = { width: e.currentTarget.style.width, height: e.currentTarget.style.height };
+      setSize(newSize);
+      localStorage.setItem(`widget_size_${id}`, JSON.stringify(newSize));
+    }
+  };
+
+  return (
+    <Draggable disabled={isLocked} position={position} onStop={handleStop} handle=".drag-handle">
+      <div 
+        className={!isLocked ? 'draggable-unlocked' : ''}
+        style={{ 
+          position: 'relative', 
+          zIndex: !isLocked ? 100 : 1, 
+          transition: isLocked ? 'transform 0.3s' : 'none',
+          width: size ? size.width : 'auto',
+          height: size ? size.height : 'auto',
+          resize: !isLocked ? 'both' : 'none',
+          overflow: !isLocked ? 'auto' : 'visible',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+        onMouseUp={handleResize}
+      >
+        {!isLocked && (
+          <div className="drag-handle" style={{
+            background: 'rgba(255, 215, 0, 0.2)',
+            border: '1px solid #FFD700',
+            color: '#FFD700',
+            textAlign: 'center',
+            fontSize: '0.6rem',
+            padding: '2px',
+            cursor: 'move',
+            letterSpacing: '2px',
+            marginBottom: '5px',
+            borderTopLeftRadius: '4px',
+            borderTopRightRadius: '4px'
+          }}>
+            [:: DRAG ::]
+          </div>
+        )}
+        {React.cloneElement(children, {
+          style: {
+            ...children.props.style,
+            boxShadow: !isLocked ? '0 0 15px #FFD700, inset 0 0 10px #FFD700' : children.props.style?.boxShadow,
+            borderColor: !isLocked ? '#FFD700' : children.props.style?.borderColor,
+            pointerEvents: !isLocked ? 'none' : 'auto',
+            flex: 1,
+            width: '100%',
+            height: '100%'
+          }
+        })}
+      </div>
+    </Draggable>
+  );
+}
 
 // Spotify PKCE OAuth Config
 const SPOTIFY_CLIENT_ID = '06927c28a4084cd1bca4b5707892c292';
@@ -369,6 +444,7 @@ function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal }) {
 }
 
 function App() {
+  const [isLayoutLocked, setIsLayoutLocked] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -731,37 +807,53 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
       )}
 
       <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
+        <button 
+          className={`layout-lock-btn ${!isLayoutLocked ? 'unlocked' : ''}`}
+          onClick={() => {
+            if (!isLayoutLocked) {
+              // Reset all positions if shift is held? No, just lock.
+            }
+            setIsLayoutLocked(!isLayoutLocked);
+          }}
+        >
+          {isLayoutLocked ? '[🔒 LAYOUT LOCKED]' : '[🔓 LAYOUT UNLOCKED]'}
+        </button>
+
         <Particles id="tsparticles" options={particlesOptions} init={async (engine) => { await loadSlim(engine); }} />
 
         {/* LEFT COLUMN */}
         <div className="hud-col-side left-panel">
           
-          <GlobalClock />
+          <DraggableWidget id="clock" isLocked={isLayoutLocked}>
+            <GlobalClock />
+          </DraggableWidget>
 
-          <div className="drive-sync-widget glass-panel-ui" style={{marginBottom: '20px'}}>
-            <div className="widget-row" style={{marginBottom: '15px'}}>
-              <div className="widget-ring" style={{width: '50px', height: '50px'}}>
-                <span className="widget-ring-text">CLOUD</span>
+          <DraggableWidget id="drive" isLocked={isLayoutLocked}>
+            <div className="drive-sync-widget glass-panel-ui" style={{marginBottom: '20px'}}>
+              <div className="widget-row" style={{marginBottom: '15px'}}>
+                <div className="widget-ring" style={{width: '50px', height: '50px'}}>
+                  <span className="widget-ring-text">CLOUD</span>
+                </div>
+                <div className="widget-content">
+                  <span style={{color: '#fff', fontSize: '0.8rem', letterSpacing: '1px'}}>MEDIA ASSETS</span>
+                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.65rem'}}>G-DRIVE SYNC</span>
+                </div>
               </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.8rem', letterSpacing: '1px'}}>MEDIA ASSETS</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.65rem'}}>G-DRIVE SYNC</span>
-              </div>
+              <div style={{color: '#888', fontSize: '0.65rem', marginBottom: '8px'}}>Link da Pasta (Google Drive):</div>
+              <input 
+                type="text" 
+                className="hud-input-floating"
+                placeholder="https://drive.google.com/..." 
+                value={driveLink}
+                onChange={(e) => setDriveLink(e.target.value)}
+                style={{fontSize: '0.6rem'}}
+              />
             </div>
-            <input
-              type="text"
-              className="hud-input-floating"
-              placeholder="[ INSERIR URL DO DRIVE AQUI ]"
-              value={driveLink}
-              onChange={(e) => setDriveLink(e.target.value)}
-              style={{width: '100%', marginBottom: '5px'}}
-            />
-            {driveLink && (
-              <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--color-good)', letterSpacing: '1px'}}>
-                STATUS: ENCRYPTED LINK SYNCED
-              </div>
-            )}
-          </div>
+          </DraggableWidget>
+
+          <DraggableWidget id="spotify" isLocked={isLayoutLocked}>
+            <SpotifyWidget />
+          </DraggableWidget>
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
@@ -815,12 +907,12 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
         {/* CENTER COLUMN */}
         <div className="hud-col-center">
           <div className="giant-reactor">
-            <div className="giant-ring ring-1"></div>
-            <div className="giant-ring ring-2"></div>
-            <div className="giant-ring ring-3"></div>
-            <div className="giant-ring ring-4"></div>
-            <div className="giant-ring ring-5"></div>
-            
+            <div className="reactor-core"></div>
+            <div className="reactor-ring ring-1"></div>
+            <div className="reactor-ring ring-2"></div>
+            <div className="reactor-ring ring-3"></div>
+            <div className="reactor-sparks"></div>
+
             <div className="orbit-container">
               <div className="orbit-text orbit-1">LEADS_SYNC</div>
               <div className="orbit-text orbit-2">FUNNEL_OPT</div>
@@ -842,65 +934,80 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
             <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
           </div>
 
-          <div className="chat-container-floating">
-            <div className="chat-history-transparent">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
-                  {msg.role === 'user' ? (
-                    <div>
-                      <span style={{color: '#888'}}>[USER]: </span>{msg.content}
+          <DraggableWidget id="chat" isLocked={isLayoutLocked}>
+            <div className="chat-container-floating glass-panel-ui">
+              <div className="chat-header">
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                  <div style={{width: '12px', height: '12px', background: 'var(--hud-cyan)', borderRadius: '50%', boxShadow: '0 0 10px var(--hud-cyan)'}}></div>
+                  <h3 style={{margin: 0, letterSpacing: '2px', fontSize: '0.9rem', color: '#fff'}}>MARK_OS / MAIN_TERMINAL</h3>
+                </div>
+                <button onClick={() => setShowHistoryModal(true)} className="hud-btn-icon" style={{border: 'none', background: 'rgba(0, 229, 255, 0.1)', padding: '5px 10px', borderRadius: '4px'}}>
+                  [LOGS]
+                </button>
+              </div>
+
+              <div className="chat-messages-scroll" style={{maxHeight: '300px'}}>
+                {messages.slice(-5).map((msg, idx) => (
+                  <div key={idx} className={`message-bubble ${msg.role}`}>
+                    <span className="msg-prefix">{msg.role === 'user' ? 'USER' : msg.role === 'system' ? 'SYS' : 'MARK'}</span>
+                    <div className="msg-content">
+                      {msg.role === 'ai' ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      ) : (
+                        msg.content
+                      )}
                       {msg.attachment && (
-                        <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--hud-cyan-dim)'}}>
-                          [ATTACHMENT: {msg.attachment.name}]
-                          {msg.attachment.type === 'image' && (
-                            <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} alt="" style={{display:'block', maxWidth:'100px', maxHeight:'80px', marginTop:'4px', border:'1px solid var(--hud-cyan-dim)', borderRadius:'4px'}} />
+                        <div style={{marginTop: '10px', border: '1px solid var(--hud-cyan-dim)', padding: '5px', display: 'inline-block', borderRadius: '4px'}}>
+                          {msg.attachment.type === 'image' ? (
+                            <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} style={{maxWidth: '200px', maxHeight: '150px'}} alt="attachment" />
+                          ) : (
+                            <span style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>&gt; {msg.attachment.name}</span>
                           )}
                         </div>
                       )}
                     </div>
-                  ) : msg.role === 'ai' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  ) : msg.content}
+                  </div>
+                ))}
+                {isTyping && (
+                  <div className="message-bubble system">
+                    <span className="msg-prefix">SYS</span>
+                    <div className="msg-content">PROCESSING_DATA...</div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <div className="chat-input-area" style={{alignItems: 'flex-end'}}>
+                <textarea 
+                  className="hud-textarea hud-input-floating" 
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Insert command (Enter for newline, Shift+Enter to send)..."
+                  disabled={isTyping || isProcessingRAG}
+                />
+                
+                <input type="file" ref={chatFileInputRef} style={{display: 'none'}} onChange={handleChatFileAttach} accept="image/*,.pdf,.doc,.docx,.txt" />
+                
+                <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                  <button className="hud-btn-icon" onClick={() => chatFileInputRef.current?.click()} title="Anexar arquivo/imagem">
+                    [+]
+                  </button>
+                  <button className={`hud-btn-icon ${isListening ? 'listening' : ''}`} onClick={toggleVoice} title="Comando de voz">
+                    [MIC]
+                  </button>
+                  <button className="hud-btn-floating" onClick={handleSend} disabled={isTyping || isProcessingRAG || (!input.trim() && !chatAttachment)}>
+                    EXEC
+                  </button>
                 </div>
-              ))}
-              {isProcessingRAG && (
-                <div className="chat-msg system" style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>
-                  [ VECTORIZER ]: GENERATING EMBEDDINGS... {ragProgress.current} / {ragProgress.total} CHUNKS
+              </div>
+              {chatAttachment && (
+                <div style={{fontSize: '0.65rem', color: '#FFD700', marginTop: '5px', letterSpacing: '1px'}}>
+                  + ATTACHED: {chatAttachment.name}
                 </div>
               )}
-              {isTyping && !isProcessingRAG && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
-              <div ref={messagesEndRef} />
             </div>
-            
-            {chatAttachment && (
-              <div style={{padding: '5px 10px', fontSize: '0.65rem', color: 'var(--hud-cyan)', background: 'rgba(0,229,255,0.05)', borderTop: '1px solid rgba(0,229,255,0.2)', display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <span>[ATTACHED: {chatAttachment.name}]</span>
-                <button onClick={() => setChatAttachment(null)} style={{background: 'none', border: 'none', color: '#f00', cursor: 'pointer', fontSize: '0.7rem'}}>REMOVE</button>
-              </div>
-            )}
-
-            <form onSubmit={handleSend} className="chat-input-wrapper">
-              <button type="button" className="hud-btn-icon" onClick={() => chatFileInputRef.current?.click()} title="Attach file">
-                [+]
-              </button>
-              <input type="file" accept="image/*,.pdf,.txt,.md" style={{display:'none'}} ref={chatFileInputRef} onChange={handleChatFileAttach} />
-              <textarea
-                className="hud-input-floating hud-textarea"
-                placeholder="[ INSIRA O COMANDO ] Enter=nova linha | Shift+Enter=enviar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isTyping}
-                rows={1}
-              />
-              <button type="button" className={`hud-btn-icon ${isListening ? 'listening' : ''}`} onClick={toggleVoice} title="Voice command">
-                {isListening ? '[ON]' : '[MIC]'}
-              </button>
-              <button type="submit" className="hud-btn-floating" disabled={(!input.trim() && !chatAttachment) || isTyping}>
-                ENGAGE
-              </button>
-            </form>
-          </div>
+          </DraggableWidget>
         </div>
 
         {/* RIGHT COLUMN */}
