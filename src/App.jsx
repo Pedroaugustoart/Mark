@@ -11,10 +11,97 @@ import './index.css';
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
 
-// Spotify config - fill in your credentials
-const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const SPOTIFY_REDIRECT_URI = window.location.origin + '/';
+// Spotify PKCE OAuth Config
+const SPOTIFY_CLIENT_ID = '06927c28a4084cd1bca4b5707892c292';
+const SPOTIFY_REDIRECT_URI = 'https://mark-nine-alpha.vercel.app';
 const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state';
+
+// PKCE helpers
+async function generateCodeChallenge(codeVerifier) {
+  const data = new TextEncoder().encode(codeVerifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function generateCodeVerifier(length = 128) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const arr = new Uint8Array(length);
+  window.crypto.getRandomValues(arr);
+  return Array.from(arr, b => chars[b % chars.length]).join('');
+}
+
+async function initiateSpotifyLogin() {
+  const verifier = generateCodeVerifier();
+  const challenge = await generateCodeChallenge(verifier);
+  localStorage.setItem('spotify_code_verifier', verifier);
+  const params = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    scope: SPOTIFY_SCOPES,
+  });
+  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+async function exchangeCodeForToken(code) {
+  const verifier = localStorage.getItem('spotify_code_verifier');
+  const body = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+    code_verifier: verifier,
+  });
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const data = await res.json();
+  if (data.access_token) {
+    localStorage.setItem('spotify_access_token', data.access_token);
+    localStorage.setItem('spotify_refresh_token', data.refresh_token);
+    localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
+    localStorage.removeItem('spotify_code_verifier');
+    return data.access_token;
+  }
+  return null;
+}
+
+async function refreshSpotifyToken() {
+  const refreshToken = localStorage.getItem('spotify_refresh_token');
+  if (!refreshToken) return null;
+  const body = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const data = await res.json();
+  if (data.access_token) {
+    localStorage.setItem('spotify_access_token', data.access_token);
+    localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
+    if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+    return data.access_token;
+  }
+  return null;
+}
+
+async function getValidSpotifyToken() {
+  const expires = parseInt(localStorage.getItem('spotify_token_expires') || '0');
+  const isExpired = Date.now() > expires - 60000; // refresh 1 min before expiry
+  if (isExpired) {
+    return await refreshSpotifyToken();
+  }
+  return localStorage.getItem('spotify_access_token');
+}
 
 const getSystemPrompt = (driveLink) => `
 Você é o MARK, o "AI MARKETING ARCHITECT", uma IA operando em um HUD de análise global.
