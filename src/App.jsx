@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Draggable from 'react-draggable';
 import * as pdfjsLib from 'pdfjs-dist';
 import { processFileForRAG, searchRelevantChunks, deleteFileChunks } from './rag';
 import './index.css';
@@ -418,10 +419,12 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         </div>
       )}
 
-      <div className="hud-layout">
+      <div className={`hud-layout ${isTyping || isProcessingRAG ? 'reactor-active' : ''}`}>
         
         {/* LEFT COLUMN */}
-        <div className="hud-col-side">
+        <Draggable handle=".draggable-handle">
+          <div className="hud-col-side" style={{position: 'absolute', left: '50px', top: '50px', zIndex: 10}}>
+            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%'}}>::: DRAG :::</div>
           <GlobalClock />
           
           <div className="drive-sync-widget" style={{ marginTop: '30px' }}>
@@ -503,10 +506,12 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             </div>
           </div>
         </div>
+        </Draggable>
 
         {/* CENTER COLUMN */}
         <div className="hud-col-center">
-          <div className="giant-reactor">
+          <Draggable handle=".giant-reactor">
+          <div className="giant-reactor" style={{cursor: 'move'}}>
             <div className="giant-ring ring-1"></div>
             <div className="giant-ring ring-2"></div>
             <div className="giant-ring ring-3"></div>
@@ -520,10 +525,21 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
               <div className="orbit-text orbit-4">ADS_ENGINE</div>
             </div>
 
-            <div className={`ring-core-glow ${isTyping ? 'thinking' : ''}`}></div>
+            
+            <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
+            <div className="matrix-code-container">
+              <div className="matrix-code-content">
+                {Array.from({length: 20}).map((_, i) => (
+                  <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
+                ))}
+              </div>
+            </div>
           </div>
+          </Draggable>
 
-          <div className="chat-container-floating">
+          <Draggable handle=".draggable-handle">
+          <div className="chat-container-floating" style={{position: 'absolute', bottom: '20px'}}>
+            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center'}}>::: DRAG TERMINAL :::</div>
             <div className="chat-history-transparent">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
@@ -554,10 +570,13 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
               </button>
             </form>
           </div>
+          </Draggable>
         </div>
 
         {/* RIGHT COLUMN */}
-        <div className="hud-col-side" style={{alignItems: 'flex-end'}}>
+        <Draggable handle=".draggable-handle">
+          <div className="hud-col-side" style={{alignItems: 'flex-end', position: 'absolute', right: '50px', top: '50px', zIndex: 10}}>
+            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%', textAlign: 'right'}}>::: DRAG :::</div>
           
           <div className="pdf-node-container">
             <div className="pdf-list">
@@ -612,6 +631,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
           </div>
 
         </div>
+        </Draggable>
 
       </div>
     </div>
