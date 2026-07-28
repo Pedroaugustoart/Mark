@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Draggable from 'react-draggable';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,80 +10,6 @@ import './index.css';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
-
-function DraggableWidget({ id, isLocked, children }) {
-  const nodeRef = useRef(null);
-  const [position, setPosition] = useState(() => {
-    const saved = localStorage.getItem(`widget_pos_${id}`);
-    return saved ? JSON.parse(saved) : { x: 0, y: 0 };
-  });
-  const [size, setSize] = useState(() => {
-    const savedSize = localStorage.getItem(`widget_size_${id}`);
-    return savedSize ? JSON.parse(savedSize) : null;
-  });
-
-  const handleStop = (e, data) => {
-    const newPos = { x: data.x, y: data.y };
-    setPosition(newPos);
-    localStorage.setItem(`widget_pos_${id}`, JSON.stringify(newPos));
-  };
-
-  const handleResize = (e) => {
-    if (!isLocked && e.currentTarget) {
-      const newSize = { width: e.currentTarget.style.width, height: e.currentTarget.style.height };
-      setSize(newSize);
-      localStorage.setItem(`widget_size_${id}`, JSON.stringify(newSize));
-    }
-  };
-
-  return (
-    <Draggable nodeRef={nodeRef} disabled={isLocked} defaultPosition={position} onStop={handleStop} handle=".drag-handle">
-      <div 
-        ref={nodeRef}
-        className={!isLocked ? 'draggable-unlocked' : ''}
-        style={{ 
-          position: 'relative', 
-          zIndex: !isLocked ? 100 : 1, 
-          transition: isLocked ? 'transform 0.3s' : 'none',
-          width: size && size.width ? size.width : 'auto',
-          height: size && size.height ? size.height : 'auto',
-          resize: !isLocked ? 'both' : 'none',
-          overflow: !isLocked ? 'auto' : 'visible',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-        onMouseUp={handleResize}
-      >
-        {!isLocked && (
-          <div className="drag-handle" style={{
-            background: 'rgba(255, 215, 0, 0.2)',
-            border: '1px solid #FFD700',
-            color: '#FFD700',
-            textAlign: 'center',
-            fontSize: '0.6rem',
-            padding: '2px',
-            cursor: 'move',
-            letterSpacing: '2px',
-            marginBottom: '5px',
-            borderTopLeftRadius: '4px',
-            borderTopRightRadius: '4px'
-          }}>
-            [:: DRAG ::]
-          </div>
-        )}
-        {React.cloneElement(children, {
-          style: {
-            ...children.props.style,
-            boxShadow: !isLocked ? '0 0 15px #FFD700, inset 0 0 10px #FFD700' : children.props.style?.boxShadow,
-            borderColor: !isLocked ? '#FFD700' : children.props.style?.borderColor,
-            pointerEvents: !isLocked ? 'none' : 'auto',
-            flexGrow: 1
-          }
-        })}
-      </div>
-    </Draggable>
-  );
-}
 
 // Spotify PKCE OAuth Config
 const SPOTIFY_CLIENT_ID = '06927c28a4084cd1bca4b5707892c292';
@@ -242,7 +167,7 @@ const deletePdfFromDB = async (id) => {
   });
 };
 
-function SpotifyWidget(props) {
+function SpotifyWidget() {
   const [track, setTrack] = useState(null);
   const [status, setStatus] = useState('DISCONNECTED');
   const [isLinked, setIsLinked] = useState(!!localStorage.getItem('spotify_refresh_token'));
@@ -320,7 +245,7 @@ function SpotifyWidget(props) {
   const progressPct = track ? (track.progress / track.duration) * 100 : 0;
 
   return (
-    <div {...props} className={`glass-panel-ui spotify-widget ${props.className || ''}`} style={{...(props.style || {}), borderColor: isLinked ? '#1DB954' : (props.style?.borderColor || 'var(--hud-cyan)'), boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : props.style?.boxShadow}}>
+    <div className="glass-panel-ui spotify-widget" style={{borderColor: isLinked ? '#1DB954' : 'var(--hud-cyan)', boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : undefined}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
         <span style={{fontSize: '0.6rem', color: '#1DB954', letterSpacing: '2px'}}>&gt; AUDIO_STREAM / {status}</span>
         {isLinked && (
@@ -365,7 +290,7 @@ function SpotifyWidget(props) {
 }
 
 
-function GlobalClock(props) {
+function GlobalClock() {
   const [time, setTime] = useState(new Date());
   
   useEffect(() => {
@@ -385,7 +310,7 @@ function GlobalClock(props) {
   const dayName = dayNames[time.getDay()];
 
   return (
-    <div {...props} className={`date-circle-container glass-panel-ui ${props.className || ''}`} style={{...(props.style || {})}}>
+    <div className="date-circle-container glass-panel-ui">
       <div className="time-display">{hrs}:{mins}:{secs}</div>
       <div className="day-display">{dayName}</div>
       <div className="large-circle">
@@ -415,9 +340,9 @@ function GlobalClock(props) {
 }
 
 // Knowledge widget overlay positioned near the reactor
-function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal, ...props }) {
+function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal }) {
   return (
-    <div {...props} className={`knowledge-core-widget glass-panel-ui ${props.className || ''}`} style={{...(props.style || {})}}>
+    <div className="knowledge-core-widget glass-panel-ui">
       <div style={{fontSize: '0.6rem', color: 'var(--hud-cyan)', letterSpacing: '2px', marginBottom: '10px'}}>
         &gt; KNOWLEDGE_BASE / {pdfFiles.length} FILES
       </div>
@@ -444,7 +369,6 @@ function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal, ...props }) {
 }
 
 function App() {
-  const [isLayoutLocked, setIsLayoutLocked] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -807,105 +731,85 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
       )}
 
       <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
-        <button 
-          className={`layout-lock-btn ${!isLayoutLocked ? 'unlocked' : ''}`}
-          onClick={() => {
-            if (!isLayoutLocked) {
-              // Reset all positions if shift is held? No, just lock.
-            }
-            setIsLayoutLocked(!isLayoutLocked);
-          }}
-        >
-          {isLayoutLocked ? '[🔒 LAYOUT LOCKED]' : '[🔓 LAYOUT UNLOCKED]'}
-        </button>
-
         <Particles id="tsparticles" options={particlesOptions} init={async (engine) => { await loadSlim(engine); }} />
 
         {/* LEFT COLUMN */}
         <div className="hud-col-side left-panel">
           
-          <DraggableWidget id="clock" isLocked={isLayoutLocked}>
-            <GlobalClock />
-          </DraggableWidget>
+          <GlobalClock />
 
-          <DraggableWidget id="drive" isLocked={isLayoutLocked}>
-            <div className="drive-sync-widget glass-panel-ui" style={{marginBottom: '20px'}}>
-              <div className="widget-row" style={{marginBottom: '15px'}}>
-                <div className="widget-ring" style={{width: '50px', height: '50px'}}>
-                  <span className="widget-ring-text">CLOUD</span>
-                </div>
-                <div className="widget-content">
-                  <span style={{color: '#fff', fontSize: '0.8rem', letterSpacing: '1px'}}>MEDIA ASSETS</span>
-                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.65rem'}}>G-DRIVE SYNC</span>
-                </div>
+          <div className="drive-sync-widget glass-panel-ui" style={{marginBottom: '20px'}}>
+            <div className="widget-row" style={{marginBottom: '15px'}}>
+              <div className="widget-ring" style={{width: '50px', height: '50px'}}>
+                <span className="widget-ring-text">CLOUD</span>
               </div>
-              <div style={{color: '#888', fontSize: '0.65rem', marginBottom: '8px'}}>Link da Pasta (Google Drive):</div>
-              <input 
-                type="text" 
-                className="hud-input-floating"
-                placeholder="https://drive.google.com/..." 
-                value={driveLink}
-                onChange={(e) => setDriveLink(e.target.value)}
-                style={{fontSize: '0.6rem'}}
-              />
+              <div className="widget-content">
+                <span style={{color: '#fff', fontSize: '0.8rem', letterSpacing: '1px'}}>MEDIA ASSETS</span>
+                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.65rem'}}>G-DRIVE SYNC</span>
+              </div>
             </div>
-          </DraggableWidget>
-
-          <DraggableWidget id="spotify" isLocked={isLayoutLocked}>
-            <SpotifyWidget />
-          </DraggableWidget>
+            <input
+              type="text"
+              className="hud-input-floating"
+              placeholder="[ INSERIR URL DO DRIVE AQUI ]"
+              value={driveLink}
+              onChange={(e) => setDriveLink(e.target.value)}
+              style={{width: '100%', marginBottom: '5px'}}
+            />
+            {driveLink && (
+              <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--color-good)', letterSpacing: '1px'}}>
+                STATUS: ENCRYPTED LINK SYNCED
+              </div>
+            )}
+          </div>
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <DraggableWidget id="logs" isLocked={isLayoutLocked}>
-            <div className="glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
-              <div className="widget-row">
-                <div className="widget-ring" style={{borderColor: '#fff', boxShadow: '0 0 15px #fff, inset 0 0 10px #fff'}}>
-                  <span className="widget-ring-text" style={{color: '#fff'}}>LOGS</span>
-                </div>
-                <div className="widget-content">
-                  <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>REQUEST HISTORY</span>
-                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                    {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
-                  </span>
-                </div>
+          <div className="glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
+            <div className="widget-row">
+              <div className="widget-ring" style={{borderColor: '#fff', boxShadow: '0 0 15px #fff, inset 0 0 10px #fff'}}>
+                <span className="widget-ring-text" style={{color: '#fff'}}>LOGS</span>
+              </div>
+              <div className="widget-content">
+                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>REQUEST HISTORY</span>
+                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
+                  {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
+                </span>
               </div>
             </div>
-          </DraggableWidget>
+          </div>
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <DraggableWidget id="goals" isLocked={isLayoutLocked}>
-            <div className="goals-widget glass-panel-ui" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-              <div className="widget-row">
-                <div className="widget-ring">
-                  <span className="widget-ring-text">GOALS</span>
-                </div>
-                <div className="widget-content">
-                  <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>TODAY'S CAMPAIGN</span>
-                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                    {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
-                  </span>
-                </div>
+          <div className="goals-widget glass-panel-ui" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+            <div className="widget-row">
+              <div className="widget-ring">
+                <span className="widget-ring-text">GOALS</span>
               </div>
-              
-              <div className="tasks-list-container" style={{paddingLeft: '5px'}}>
-                {tasks.length === 0 ? (
-                  <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
-                ) : (
-                  tasks.map(task => (
-                    <div key={task.id} className="task-item">
-                      <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
-                        {task.completed ? '✓' : ''}
-                      </button>
-                      <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
-                      <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
-                    </div>
-                  ))
-                )}
+              <div className="widget-content">
+                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>TODAY'S CAMPAIGN</span>
+                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
+                  {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
+                </span>
               </div>
             </div>
-          </DraggableWidget>
+            
+            <div className="tasks-list-container" style={{paddingLeft: '5px'}}>
+              {tasks.length === 0 ? (
+                <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
+              ) : (
+                tasks.map(task => (
+                  <div key={task.id} className="task-item">
+                    <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
+                      {task.completed ? '✓' : ''}
+                    </button>
+                    <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
+                    <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {/* CENTER COLUMN */}
@@ -916,7 +820,7 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
             <div className="giant-ring ring-3"></div>
             <div className="giant-ring ring-4"></div>
             <div className="giant-ring ring-5"></div>
-
+            
             <div className="orbit-container">
               <div className="orbit-text orbit-1">LEADS_SYNC</div>
               <div className="orbit-text orbit-2">FUNNEL_OPT</div>
@@ -934,129 +838,104 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
             </div>
 
             {/* KNOWLEDGE CONNECTED TO REACTOR */}
-            <DraggableWidget id="knowledge" isLocked={isLayoutLocked}>
-              <KnowledgeCore pdfFiles={pdfFiles} fileInputRef={fileInputRef} setShowPdfModal={setShowPdfModal} />
-            </DraggableWidget>
+            <KnowledgeCore pdfFiles={pdfFiles} fileInputRef={fileInputRef} setShowPdfModal={setShowPdfModal} />
             <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
           </div>
 
-          <DraggableWidget id="chat" isLocked={isLayoutLocked}>
-            <div className="chat-container-floating glass-panel-ui">
-              <div className="chat-header">
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                  <div style={{width: '12px', height: '12px', background: 'var(--hud-cyan)', borderRadius: '50%', boxShadow: '0 0 10px var(--hud-cyan)'}}></div>
-                  <h3 style={{margin: 0, letterSpacing: '2px', fontSize: '0.9rem', color: '#fff'}}>MARK_OS / MAIN_TERMINAL</h3>
-                </div>
-                <button onClick={() => setShowHistoryModal(true)} className="hud-btn-icon" style={{border: 'none', background: 'rgba(0, 229, 255, 0.1)', padding: '5px 10px', borderRadius: '4px'}}>
-                  [LOGS]
-                </button>
-              </div>
-
-              <div className="chat-messages-scroll" style={{maxHeight: '300px'}}>
-                {messages.slice(-5).map((msg, idx) => (
-                  <div key={idx} className={`message-bubble ${msg.role}`}>
-                    <span className="msg-prefix">{msg.role === 'user' ? 'USER' : msg.role === 'system' ? 'SYS' : 'MARK'}</span>
-                    <div className="msg-content">
-                      {msg.role === 'ai' ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                      ) : (
-                        msg.content
-                      )}
+          <div className="chat-container-floating">
+            <div className="chat-history-transparent">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
+                  {msg.role === 'user' ? (
+                    <div>
+                      <span style={{color: '#888'}}>[USER]: </span>{msg.content}
                       {msg.attachment && (
-                        <div style={{marginTop: '10px', border: '1px solid var(--hud-cyan-dim)', padding: '5px', display: 'inline-block', borderRadius: '4px'}}>
-                          {msg.attachment.type === 'image' ? (
-                            <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} style={{maxWidth: '200px', maxHeight: '150px'}} alt="attachment" />
-                          ) : (
-                            <span style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>&gt; {msg.attachment.name}</span>
+                        <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--hud-cyan-dim)'}}>
+                          [ATTACHMENT: {msg.attachment.name}]
+                          {msg.attachment.type === 'image' && (
+                            <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} alt="" style={{display:'block', maxWidth:'100px', maxHeight:'80px', marginTop:'4px', border:'1px solid var(--hud-cyan-dim)', borderRadius:'4px'}} />
                           )}
                         </div>
                       )}
                     </div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="message-bubble system">
-                    <span className="msg-prefix">SYS</span>
-                    <div className="msg-content">PROCESSING_DATA...</div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              <div className="chat-input-area" style={{alignItems: 'flex-end'}}>
-                <textarea 
-                  className="hud-textarea hud-input-floating" 
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Insert command (Enter for newline, Shift+Enter to send)..."
-                  disabled={isTyping || isProcessingRAG}
-                />
-                
-                <input type="file" ref={chatFileInputRef} style={{display: 'none'}} onChange={handleChatFileAttach} accept="image/*,.pdf,.doc,.docx,.txt" />
-                
-                <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
-                  <button className="hud-btn-icon" onClick={() => chatFileInputRef.current?.click()} title="Anexar arquivo/imagem">
-                    [+]
-                  </button>
-                  <button className={`hud-btn-icon ${isListening ? 'listening' : ''}`} onClick={toggleVoice} title="Comando de voz">
-                    [MIC]
-                  </button>
-                  <button className="hud-btn-floating" onClick={handleSend} disabled={isTyping || isProcessingRAG || (!input.trim() && !chatAttachment)}>
-                    EXEC
-                  </button>
+                  ) : msg.role === 'ai' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  ) : msg.content}
                 </div>
-              </div>
-              {chatAttachment && (
-                <div style={{fontSize: '0.65rem', color: '#FFD700', marginTop: '5px', letterSpacing: '1px'}}>
-                  + ATTACHED: {chatAttachment.name}
+              ))}
+              {isProcessingRAG && (
+                <div className="chat-msg system" style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>
+                  [ VECTORIZER ]: GENERATING EMBEDDINGS... {ragProgress.current} / {ragProgress.total} CHUNKS
                 </div>
               )}
+              {isTyping && !isProcessingRAG && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
+              <div ref={messagesEndRef} />
             </div>
-          </DraggableWidget>
+            
+            {chatAttachment && (
+              <div style={{padding: '5px 10px', fontSize: '0.65rem', color: 'var(--hud-cyan)', background: 'rgba(0,229,255,0.05)', borderTop: '1px solid rgba(0,229,255,0.2)', display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <span>[ATTACHED: {chatAttachment.name}]</span>
+                <button onClick={() => setChatAttachment(null)} style={{background: 'none', border: 'none', color: '#f00', cursor: 'pointer', fontSize: '0.7rem'}}>REMOVE</button>
+              </div>
+            )}
+
+            <form onSubmit={handleSend} className="chat-input-wrapper">
+              <button type="button" className="hud-btn-icon" onClick={() => chatFileInputRef.current?.click()} title="Attach file">
+                [+]
+              </button>
+              <input type="file" accept="image/*,.pdf,.txt,.md" style={{display:'none'}} ref={chatFileInputRef} onChange={handleChatFileAttach} />
+              <textarea
+                className="hud-input-floating hud-textarea"
+                placeholder="[ INSIRA O COMANDO ] Enter=nova linha | Shift+Enter=enviar"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isTyping}
+                rows={1}
+              />
+              <button type="button" className={`hud-btn-icon ${isListening ? 'listening' : ''}`} onClick={toggleVoice} title="Voice command">
+                {isListening ? '[ON]' : '[MIC]'}
+              </button>
+              <button type="submit" className="hud-btn-floating" disabled={(!input.trim() && !chatAttachment) || isTyping}>
+                ENGAGE
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* RIGHT COLUMN */}
         <div className="hud-col-side right-panel" style={{alignItems: 'flex-end'}}>
           
-          <DraggableWidget id="spotify_right" isLocked={isLayoutLocked}>
-            <SpotifyWidget />
-          </DraggableWidget>
+          <SpotifyWidget />
 
-          <DraggableWidget id="social_sync" isLocked={isLayoutLocked}>
-            <div style={{marginTop: '30px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8', border: '1px solid var(--hud-cyan)', padding: '15px', borderRadius: '4px', background: 'rgba(4, 10, 16, 0.8)'}}>
-              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
-              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
-              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
-              <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
-            </div>
-          </DraggableWidget>
+          <div style={{marginTop: '30px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8'}}>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
+            <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
+          </div>
 
-          <DraggableWidget id="posting_times" isLocked={isLayoutLocked}>
-            <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem', border: '1px solid var(--hud-cyan)', padding: '15px', borderRadius: '4px', background: 'rgba(4, 10, 16, 0.8)'}}>
-              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
-                &gt; BEST_POSTING_TIMES
-              </div>
-              <div style={{color: '#fff', lineHeight: '1.6'}}>
-                SEG, TER, QUA <br />
-                <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
-              </div>
+          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem'}}>
+            <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
+              &gt; BEST_POSTING_TIMES
             </div>
-          </DraggableWidget>
+            <div style={{color: '#fff', lineHeight: '1.6'}}>
+              SEG, TER, QUA <br />
+              <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
+            </div>
+          </div>
 
           <div style={{flexGrow: 1}}></div>
 
-          <DraggableWidget id="market_heat" isLocked={isLayoutLocked}>
-            <div className="atmosphere-container">
-              <div className="atmosphere-label">
-                <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
-                <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
-              </div>
-              <div className="atmosphere-circle">
-                94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
-              </div>
+          <div className="atmosphere-container">
+            <div className="atmosphere-label">
+              <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
+              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
             </div>
-          </DraggableWidget>
+            <div className="atmosphere-circle">
+              94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
+            </div>
+          </div>
 
         </div>
 
