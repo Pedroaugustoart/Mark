@@ -528,7 +528,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                 <span>&gt; MANAGE_DATABASE</span>
                 <div className="pdf-dot" style={{background: 'var(--hud-cyan-dim)'}}></div>
               </div>
-              <input type="file" accept="application/pdf" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
+              <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
             </div>
             <div className="pdf-reactor">
               <div className="pdf-core"></div>
