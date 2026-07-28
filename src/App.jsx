@@ -419,15 +419,16 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         </div>
       )}
 
-      <div className={`hud-layout ${isTyping || isProcessingRAG ? 'reactor-active' : ''}`}>
+      <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
         
         {/* LEFT COLUMN */}
-        <Draggable handle=".draggable-handle" bounds="parent">
-          <div className="hud-col-side left-panel-3d" style={{position: "absolute", left: "50px", top: "50px", zIndex: 10}}>
-            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%'}}>::: DRAG :::</div>
-          <div className="glass-panel" style={{width: "100%", marginBottom: "15px"}}><GlobalClock /></div>
+        <Draggable handle=".draggable-handle">
+          <div className="hud-col-side left-panel-3d glass-panel" style={{position: 'relative'}}>
+            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center', marginBottom: '10px'}}>::: DRAG :::</div>
+
+          <GlobalClock />
           
-          <div className="drive-sync-widget glass-panel" style={{ marginTop: '15px', width: "100%", boxSizing: "border-box" }}>
+          <div className="drive-sync-widget" style={{ marginTop: '30px' }}>
             <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
               &gt; CLOUD_MEDIA ASSETS
             </div>
@@ -462,7 +463,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
           
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="communication-circle glass-panel" style={{cursor: 'pointer', marginBottom: '15px', width: "100%", boxSizing: "border-box", justifyContent: "flex-start"}} onClick={() => setShowHistoryModal(true)}>
+          <div className="communication-circle" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
             <div className="comm-ring" style={{width: '70px', height: '70px', borderColor: '#fff'}}>
               <span className="comm-text" style={{fontSize: '0.6rem', color: '#fff'}}>LOGS</span>
             </div>
@@ -476,7 +477,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="goals-widget glass-panel" style={{width: "100%", boxSizing: "border-box"}}>
+          <div className="goals-widget">
             <div className="communication-circle" style={{marginBottom: '10px'}}>
               <div className="comm-ring" style={{borderColor: 'var(--hud-cyan)'}}>
                 <span className="comm-text" style={{color: 'var(--hud-cyan)'}}>GOALS</span>
@@ -505,41 +506,40 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
               )}
             </div>
           </div>
-        </div>
+          </div>
         </Draggable>
 
         {/* CENTER COLUMN */}
-        
-          <Draggable handle=".giant-reactor" bounds="parent">
-          <div className="giant-reactor" style={{cursor: 'move'}}>
-            <div className="giant-ring ring-1"></div>
-            <div className="giant-ring ring-2"></div>
-            <div className="giant-ring ring-3"></div>
-            <div className="giant-ring ring-4"></div>
-            <div className="giant-ring ring-5"></div>
-            
-            <div className="orbit-container">
-              <div className="orbit-text orbit-1">LEADS_SYNC</div>
-              <div className="orbit-text orbit-2">FUNNEL_OPT</div>
-              <div className="orbit-text orbit-3">ROAS_MONITOR</div>
-              <div className="orbit-text orbit-4">ADS_ENGINE</div>
-            </div>
+        <div className="hud-col-center">
+                    <Draggable handle=".giant-reactor">
+            <div className="giant-reactor" style={{cursor: 'move'}}>
+              <div className="giant-ring ring-1"></div>
+              <div className="giant-ring ring-2"></div>
+              <div className="giant-ring ring-3"></div>
+              <div className="giant-ring ring-4"></div>
+              <div className="giant-ring ring-5"></div>
+              
+              <div className="orbit-container">
+                <div className="orbit-text orbit-1">LEADS_SYNC</div>
+                <div className="orbit-text orbit-2">FUNNEL_OPT</div>
+                <div className="orbit-text orbit-3">ROAS_MONITOR</div>
+                <div className="orbit-text orbit-4">ADS_ENGINE</div>
+              </div>
 
-            
-            <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
-            <div className="matrix-code-container">
-              <div className="matrix-code-content">
-                {Array.from({length: 20}).map((_, i) => (
-                  <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
-                ))}
+              <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
+              <div className="matrix-code-container">
+                <div className="matrix-code-content">
+                  {Array.from({length: 20}).map((_, i) => (
+                    <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
           </Draggable>
 
-          <Draggable handle=".draggable-handle" bounds="parent">
-          <div className="chat-container-floating glass-panel" style={{marginTop: '20px'}}>
-            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center'}}>::: DRAG TERMINAL :::</div>
+                    <Draggable handle=".draggable-handle">
+            <div className="chat-container-floating glass-panel" style={{position: 'relative'}}>
+              <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center'}}>::: DRAG TERMINAL :::</div>
             <div className="chat-history-transparent">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
@@ -569,15 +569,16 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                 ENGAGE
               </button>
             </form>
-          </div>
+            </div>
           </Draggable>
+        </div>
 
         {/* RIGHT COLUMN */}
-        <Draggable handle=".draggable-handle" bounds="parent">
-          <div className="hud-col-side right-panel-3d" style={{position: "absolute", right: "50px", top: "50px", zIndex: 10}}>
-            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%', textAlign: 'right'}}>::: DRAG :::</div>
+        <Draggable handle=".draggable-handle">
+          <div className="hud-col-side right-panel-3d glass-panel" style={{alignItems: 'flex-end', position: 'relative'}}>
+            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center', width: '100%', marginBottom: '10px'}}>::: DRAG :::</div>
           
-          <div className="pdf-node-container glass-panel" style={{width: "100%", boxSizing: "border-box"}}>
+          <div className="pdf-node-container">
             <div className="pdf-list">
               {pdfFiles.map((pdf, i) => (
                 <div key={i} className="pdf-item">
@@ -600,14 +601,14 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             </div>
           </div>
 
-          <div className="glass-panel" style={{marginTop: '15px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8', width: "100%", boxSizing: "border-box"}}>
+          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8'}}>
             <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
             <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
             <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
             <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
           </div>
 
-          <div className="glass-panel" style={{marginTop: '15px', textAlign: 'right', fontSize: '0.8rem', width: "100%", boxSizing: "border-box"}}>
+          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem'}}>
             <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
               &gt; BEST_POSTING_TIMES
             </div>
@@ -619,7 +620,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
           <div style={{flexGrow: 1}}></div>
 
-          <div className="atmosphere-container glass-panel" style={{width: "100%", boxSizing: "border-box", marginTop: "15px"}}>
+          <div className="atmosphere-container">
             <div className="atmosphere-label">
               <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
               <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
@@ -629,7 +630,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             </div>
           </div>
 
-        </div>
+          </div>
         </Draggable>
 
       </div>
