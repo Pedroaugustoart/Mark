@@ -2,9 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import * as pdfjsLib from 'pdfjs-dist';
+import { processFileForRAG, searchRelevantChunks, deleteFileChunks } from './rag';
 import './index.css';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
 
 const getSystemPrompt = (driveLink) => `
 Você é o MARK, o "AI MARKETING ARCHITECT", uma IA operando em um HUD de análise global.
@@ -126,6 +129,8 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [isProcessingRAG, setIsProcessingRAG] = useState(false);
+  const [ragProgress, setRagProgress] = useState({ current: 0, total: 0 });
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -205,30 +210,59 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
+  const extractTextFromPDF = async (arrayBuffer) => {
+    const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + ' \n';
+    }
+    return fullText;
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Data = reader.result.split(',')[1];
-      const newPdf = { id: Date.now().toString(), name: file.name, mimeType: file.type, data: base64Data };
-      try {
-        await savePdfToDB(newPdf);
-        setPdfFiles(prev => [...prev, newPdf]);
-        setMessages(prev => [...prev, { role: 'system', content: `[DATA INJECT]: ${file.name}` }]);
-      } catch (err) {
-        setMessages(prev => [...prev, { role: 'system', content: `[ERROR]: ${err.message}` }]);
+    setIsProcessingRAG(true);
+    setRagProgress({ current: 0, total: 0 });
+    
+    try {
+      const newPdf = { id: Date.now().toString(), name: file.name, mimeType: file.type };
+      
+      let textToProcess = '';
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        setMessages(prev => [...prev, { role: 'system', content: `[SYSTEM_BOOT]: Extracting raw text from PDF...` }]);
+        textToProcess = await extractTextFromPDF(arrayBuffer);
+      } else {
+        textToProcess = await file.text();
       }
-    };
-    reader.readAsDataURL(file);
+
+      setMessages(prev => [...prev, { role: 'system', content: `[SYSTEM_BOOT]: Chunking and generating semantic embeddings...` }]);
+      
+      await processFileForRAG(newPdf.id, textToProcess, ai, (current, total) => {
+        setRagProgress({ current, total });
+      });
+
+      await savePdfToDB(newPdf);
+      setPdfFiles(prev => [...prev, newPdf]);
+      setMessages(prev => [...prev, { role: 'system', content: `[DATA INJECT]: ${file.name} (RAG Indexed)` }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'system', content: `[ERROR]: ${err.message}` }]);
+    } finally {
+      setIsProcessingRAG(false);
+    }
   };
 
   const handleDeletePdf = async (id) => {
     try {
       await deletePdfFromDB(id);
+      await deleteFileChunks(id);
       setPdfFiles(prev => prev.filter(pdf => pdf.id !== id));
-      setMessages(prev => [...prev, { role: 'system', content: `[DATA PURGED]: ID ${id}` }]);
+      setMessages(prev => [...prev, { role: 'system', content: `[DATA PURGED]: ID ${id} and all semantic vectors` }]);
     } catch (err) {
       console.error(err);
     }
@@ -253,10 +287,18 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
     try {
       const history = messages.filter(m => m.role !== 'system').map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
-      const textPart = { text: `${getSystemPrompt(driveLink)}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
-      const contents = [textPart];
+      
+      let contextText = '';
+      if (pdfFiles.length > 0) {
+        setMessages(prev => [...prev, { role: 'system', content: '[ SYSTEM_BOOT ]: PERFORMING VECTOR SEARCH ON DATABASE...' }]);
+        const relevantChunks = await searchRelevantChunks(userText, ai, 5);
+        if (relevantChunks.length > 0) {
+          contextText = "\n\n[DADOS RECUPERADOS DO BANCO DE DADOS VETORIAL LOCAL (RAG)]:\n" + relevantChunks.map(c => `[Contexto (Relevância ${(c.score * 100).toFixed(1)}%)]:\n${c.text}`).join('\n\n');
+        }
+      }
 
-      pdfFiles.forEach(pdf => contents.push({ inlineData: { mimeType: pdf.mimeType, data: pdf.data } }));
+      const textPart = { text: `${getSystemPrompt(driveLink)}${contextText}\n\nHistórico:\n${history}\n\n[USER]: ${userText}\n[MARK]:` };
+      const contents = [textPart];
 
       let response;
       let retries = 3;
@@ -490,7 +532,12 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                   ) : msg.content}
                 </div>
               ))}
-              {isTyping && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
+              {isProcessingRAG && (
+                <div className="chat-msg system" style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>
+                  [ VECTORIZER ]: GENERATING EMBEDDINGS... {ragProgress.current} / {ragProgress.total} CHUNKS
+                </div>
+              )}
+              {isTyping && !isProcessingRAG && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
               <div ref={messagesEndRef} />
             </div>
             <form onSubmit={handleSend} className="chat-input-wrapper">
