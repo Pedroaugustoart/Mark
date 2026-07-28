@@ -21,11 +21,10 @@ body {
   padding: 0;
   font-family: var(--font-main);
   background-color: #000000;
-  background-image: radial-gradient(rgba(0, 229, 255, 0.2) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-image: radial-gradient(rgba(0, 229, 255, 0.25) 1px, transparent 1px);
+  background-size: 35px 35px;
   background-position: 0 0;
   color: #fff;
-  overflow: hidden; /* Previne scroll acidental na UI fixa */
 }
 
 /* Grungy/Textured Background */
@@ -35,14 +34,7 @@ body {
   background-image: radial-gradient(circle at center, #1c2227 0%, #050608 100%);
   z-index: 0;
 }
-.hud-bg-texture::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  pointer-events: none;
-  opacity: 0;
-}
+
 
 #root {
   height: 100%;
@@ -397,47 +389,8 @@ body {
   width: 80px; height: 80px;
   border-radius: 50%;
   background: rgba(0, 229, 255, 0.2);
-  box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 0 20px var(--hud-cyan);
-  animation: pulse 4s infinite alternate;
-  position: relative;
-}
-
-.matrix-code-container {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100px;
-  height: 100px;
-  overflow: hidden;
-  border-radius: 50%;
-  color: rgba(255,255,255,0.7);
-  font-family: monospace;
-  font-size: 0.55rem;
-  line-height: 1.4;
-  pointer-events: none;
-  display: flex;
-  justify-content: center;
-}
-
-.matrix-code-content {
-  display: flex;
-  flex-direction: column;
-  white-space: nowrap;
-  animation: matrix-scroll 8s linear infinite;
-}
-
-@keyframes matrix-scroll {
-  0% { transform: translateY(100%); }
-  100% { transform: translateY(-150%); }
-}
-
-.reactor-active {
-  --hud-cyan: #ffdd00 !important;
-  --hud-cyan-dim: rgba(255, 221, 0, 0.4) !important;
-}
-
-.ring-outer {
+  box-shadow: 0 0 60px var(--hud-cyan);
+  animation: pulse 3s ease-in-out infinite alternate;
 }
 .ring-core-glow.thinking {
   background: #fff;
@@ -621,11 +574,10 @@ body {
   padding: 0;
   font-family: var(--font-main);
   background-color: #000000;
-  background-image: radial-gradient(rgba(0, 229, 255, 0.2) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-image: radial-gradient(rgba(0, 229, 255, 0.25) 1px, transparent 1px);
+  background-size: 35px 35px;
   background-position: 0 0;
   color: #fff;
-  overflow: hidden; /* Previne scroll acidental na UI fixa */
 }
 .pdf-manage-list {
   list-style: none;
@@ -660,42 +612,37 @@ body {
   box-shadow: 0 0 10px #ff0044;
 }
 
-
-/* ANTIGRAVITY HUD DESIGN */
-.glass-panel {
-  background: rgba(0, 5, 10, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 229, 255, 0.15);
-  border-top: 1px solid rgba(0, 229, 255, 0.4);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(0, 229, 255, 0.05);
-  border-radius: 12px;
-  transition: all 0.3s ease-out;
-  padding: 15px;
+.matrix-code-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  overflow: hidden;
+  border-radius: 50%;
+  color: rgba(255,255,255,0.7);
+  font-family: monospace;
+  font-size: 0.55rem;
+  line-height: 1.4;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
 }
 
-.glass-panel:hover {
-  border-color: rgba(0, 229, 255, 0.4);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(0, 229, 255, 0.1);
-  transform: translateY(-2px);
+.matrix-code-content {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  animation: matrix-scroll 8s linear infinite;
 }
 
-.left-panel-3d {
-  transform: perspective(1000px) rotateY(10deg);
-  transform-style: preserve-3d;
-  transition: transform 0.5s ease-out;
-}
-.left-panel-3d:hover {
-  transform: perspective(1000px) rotateY(5deg);
+@keyframes matrix-scroll {
+  0% { transform: translateY(100%); }
+  100% { transform: translateY(-150%); }
 }
 
-.right-panel-3d {
-  transform: perspective(1000px) rotateY(-10deg);
-  transform-style: preserve-3d;
-  transition: transform 0.5s ease-out;
+.reactor-active {
+  --hud-cyan: #ffdd00 !important;
+  --hud-cyan-dim: rgba(255, 221, 0, 0.4) !important;
 }
-.right-panel-3d:hover {
-  transform: perspective(1000px) rotateY(-5deg);
-}
-
-

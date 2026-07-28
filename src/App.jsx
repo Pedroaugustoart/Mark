@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Draggable from 'react-draggable';
 import * as pdfjsLib from 'pdfjs-dist';
 import { processFileForRAG, searchRelevantChunks, deleteFileChunks } from './rag';
 import './index.css';
@@ -422,10 +421,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
       <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
         
         {/* LEFT COLUMN */}
-        <Draggable handle=".draggable-handle">
-          <div className="hud-col-side left-panel-3d glass-panel" style={{position: 'relative'}}>
-            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center', marginBottom: '10px'}}>::: DRAG :::</div>
-
+        <div className="hud-col-side">
           <GlobalClock />
           
           <div className="drive-sync-widget" style={{ marginTop: '30px' }}>
@@ -506,40 +502,35 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
               )}
             </div>
           </div>
-          </div>
-        </Draggable>
+        </div>
 
         {/* CENTER COLUMN */}
         <div className="hud-col-center">
-                    <Draggable handle=".giant-reactor">
-            <div className="giant-reactor" style={{cursor: 'move'}}>
-              <div className="giant-ring ring-1"></div>
-              <div className="giant-ring ring-2"></div>
-              <div className="giant-ring ring-3"></div>
-              <div className="giant-ring ring-4"></div>
-              <div className="giant-ring ring-5"></div>
-              
-              <div className="orbit-container">
-                <div className="orbit-text orbit-1">LEADS_SYNC</div>
-                <div className="orbit-text orbit-2">FUNNEL_OPT</div>
-                <div className="orbit-text orbit-3">ROAS_MONITOR</div>
-                <div className="orbit-text orbit-4">ADS_ENGINE</div>
-              </div>
+          <div className="giant-reactor">
+            <div className="giant-ring ring-1"></div>
+            <div className="giant-ring ring-2"></div>
+            <div className="giant-ring ring-3"></div>
+            <div className="giant-ring ring-4"></div>
+            <div className="giant-ring ring-5"></div>
+            
+            <div className="orbit-container">
+              <div className="orbit-text orbit-1">LEADS_SYNC</div>
+              <div className="orbit-text orbit-2">FUNNEL_OPT</div>
+              <div className="orbit-text orbit-3">ROAS_MONITOR</div>
+              <div className="orbit-text orbit-4">ADS_ENGINE</div>
+            </div>
 
-              <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
-              <div className="matrix-code-container">
-                <div className="matrix-code-content">
-                  {Array.from({length: 20}).map((_, i) => (
-                    <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
-                  ))}
-                </div>
+            <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
+            <div className="matrix-code-container">
+              <div className="matrix-code-content">
+                {Array.from({length: 20}).map((_, i) => (
+                  <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
+                ))}
               </div>
             </div>
-          </Draggable>
+          </div>
 
-                    <Draggable handle=".draggable-handle">
-            <div className="chat-container-floating glass-panel" style={{position: 'relative'}}>
-              <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center'}}>::: DRAG TERMINAL :::</div>
+          <div className="chat-container-floating">
             <div className="chat-history-transparent">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
@@ -569,14 +560,11 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                 ENGAGE
               </button>
             </form>
-            </div>
-          </Draggable>
+          </div>
         </div>
 
         {/* RIGHT COLUMN */}
-        <Draggable handle=".draggable-handle">
-          <div className="hud-col-side right-panel-3d glass-panel" style={{alignItems: 'flex-end', position: 'relative'}}>
-            <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', textAlign: 'center', width: '100%', marginBottom: '10px'}}>::: DRAG :::</div>
+        <div className="hud-col-side" style={{alignItems: 'flex-end'}}>
           
           <div className="pdf-node-container">
             <div className="pdf-list">
@@ -630,8 +618,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             </div>
           </div>
 
-          </div>
-        </Draggable>
+        </div>
 
       </div>
     </div>
