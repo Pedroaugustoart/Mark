@@ -80,24 +80,127 @@ const deletePdfFromDB = async (id) => {
   });
 };
 
-// Spotify helpers
-function getSpotifyAuthUrl() {
-  if (!SPOTIFY_CLIENT_ID) return null;
-  const params = new URLSearchParams({
-    client_id: SPOTIFY_CLIENT_ID,
-    response_type: 'token',
-    redirect_uri: SPOTIFY_REDIRECT_URI,
-    scope: SPOTIFY_SCOPES,
-  });
-  return `https://accounts.spotify.com/authorize?${params.toString()}`;
-}
-
 function SpotifyWidget() {
   const [track, setTrack] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem('spotify_token') || '');
   const [status, setStatus] = useState('DISCONNECTED');
-  const [tokenInput, setTokenInput] = useState('');
-  const [showInput, setShowInput] = useState(false);
+  const [isLinked, setIsLinked] = useState(!!localStorage.getItem('spotify_refresh_token'));
+
+  // Handle OAuth callback code from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code && localStorage.getItem('spotify_code_verifier')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      exchangeCodeForToken(code).then(token => {
+        if (token) {
+          setIsLinked(true);
+          setStatus('LINKED');
+        }
+      });
+    }
+  }, []);
+
+  const fetchNowPlaying = useCallback(async () => {
+    try {
+      const token = await getValidSpotifyToken();
+      if (!token) { setStatus('DISCONNECTED'); setIsLinked(false); return; }
+      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        // Try refreshing once
+        const newToken = await refreshSpotifyToken();
+        if (!newToken) {
+          localStorage.removeItem('spotify_access_token');
+          localStorage.removeItem('spotify_refresh_token');
+          setIsLinked(false);
+          setStatus('DISCONNECTED');
+          return;
+        }
+      }
+      if (res.status === 204) { setStatus('IDLE'); setTrack(null); return; }
+      const data = await res.json();
+      if (data && data.item) {
+        setTrack({
+          name: data.item.name,
+          artist: data.item.artists.map(a => a.name).join(', '),
+          art: data.item.album.images[2]?.url || data.item.album.images[0]?.url,
+          progress: data.progress_ms,
+          duration: data.item.duration_ms,
+          isPlaying: data.is_playing,
+        });
+        setStatus('STREAMING');
+      } else {
+        setStatus('IDLE');
+        setTrack(null);
+      }
+    } catch {
+      setStatus('ERROR');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLinked) return;
+    fetchNowPlaying();
+    const interval = setInterval(fetchNowPlaying, 5000);
+    return () => clearInterval(interval);
+  }, [isLinked, fetchNowPlaying]);
+
+  const handleDisconnect = () => {
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('spotify_token_expires');
+    setIsLinked(false);
+    setTrack(null);
+    setStatus('DISCONNECTED');
+  };
+
+  const progressPct = track ? (track.progress / track.duration) * 100 : 0;
+
+  return (
+    <div className="glass-panel-ui spotify-widget" style={{borderColor: isLinked ? '#1DB954' : 'var(--hud-cyan)', boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : undefined}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+        <span style={{fontSize: '0.6rem', color: '#1DB954', letterSpacing: '2px'}}>&gt; AUDIO_STREAM / {status}</span>
+        {isLinked && (
+          <button onClick={handleDisconnect} style={{background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '0.55rem', letterSpacing: '1px', fontFamily: 'var(--font-main)'}}>[UNLINK]</button>
+        )}
+      </div>
+
+      {!isLinked && (
+        <div>
+          <div style={{color: '#888', fontSize: '0.65rem', marginBottom: '12px', lineHeight: '1.5'}}>
+            Conecte sua conta Spotify para ver a musica atual em tempo real.
+          </div>
+          <button
+            onClick={initiateSpotifyLogin}
+            style={{width: '100%', background: '#1DB954', border: 'none', color: '#000', fontFamily: 'var(--font-main)', fontSize: '0.7rem', letterSpacing: '2px', padding: '8px', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold'}}>
+            LOGIN SPOTIFY
+          </button>
+        </div>
+      )}
+
+      {isLinked && track && (
+        <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+          {track.art && (
+            <img src={track.art} alt="album" style={{width: '45px', height: '45px', borderRadius: '4px', border: '1px solid #1DB954', boxShadow: '0 0 8px #1DB954', flexShrink: 0}} />
+          )}
+          <div style={{flex: 1, minWidth: 0}}>
+            <div style={{color: '#fff', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '1px'}}>{track.name}</div>
+            <div style={{color: '#888', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{track.artist}</div>
+            <div style={{marginTop: '6px', height: '2px', background: 'rgba(255,255,255,0.1)', borderRadius: '1px'}}>
+              <div style={{height: '100%', width: `${progressPct}%`, background: '#1DB954', boxShadow: '0 0 5px #1DB954', borderRadius: '1px', transition: 'width 1s linear'}} />
+            </div>
+          </div>
+          <div style={{width: '10px', height: '10px', borderRadius: '50%', background: track.isPlaying ? '#1DB954' : '#555', boxShadow: track.isPlaying ? '0 0 8px #1DB954' : 'none', flexShrink: 0, animation: track.isPlaying ? 'blink 2s infinite' : 'none'}} />
+        </div>
+      )}
+
+      {isLinked && !track && (
+        <div style={{color: '#888', fontSize: '0.7rem'}}>NO_TRACK_DETECTED</div>
+      )}
+    </div>
+  );
+}
 
   const fetchNowPlaying = useCallback(async (t) => {
     const activeToken = t || token;
@@ -135,85 +238,7 @@ function SpotifyWidget() {
     }
   }, [token]);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchNowPlaying(token);
-    const interval = setInterval(() => fetchNowPlaying(token), 5000);
-    return () => clearInterval(interval);
-  }, [token]);
 
-  const handleSaveToken = () => {
-    if (!tokenInput.trim()) return;
-    const t = tokenInput.trim();
-    localStorage.setItem('spotify_token', t);
-    setToken(t);
-    setTokenInput('');
-    setShowInput(false);
-    fetchNowPlaying(t);
-  };
-
-  const progressPct = track ? (track.progress / track.duration) * 100 : 0;
-
-  return (
-    <div className="glass-panel-ui spotify-widget" style={{borderColor: token ? '#1DB954' : 'var(--hud-cyan)', boxShadow: token ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : undefined}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-        <span style={{fontSize: '0.6rem', color: '#1DB954', letterSpacing: '2px'}}>&gt; AUDIO_STREAM / {status}</span>
-        <button
-          onClick={() => { setShowInput(s => !s); setToken(''); localStorage.removeItem('spotify_token'); }}
-          style={{background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.6rem', letterSpacing: '1px', fontFamily: 'var(--font-main)'}}>
-          {token ? '[RESET]' : '[SET_TOKEN]'}
-        </button>
-      </div>
-
-      {!token && (
-        <div>
-          <div style={{color: '#888', fontSize: '0.65rem', marginBottom: '8px'}}>
-            Cole o token do Spotify Developer Console:
-          </div>
-          <div style={{display: 'flex', gap: '5px'}}>
-            <input
-              type="text"
-              value={tokenInput}
-              onChange={e => setTokenInput(e.target.value)}
-              placeholder="BQA..."
-              className="hud-input-floating"
-              style={{flex: 1, fontSize: '0.6rem'}}
-              onKeyDown={e => e.key === 'Enter' && handleSaveToken()}
-            />
-            <button onClick={handleSaveToken} className="hud-btn-floating" style={{fontSize: '0.6rem', padding: '5px 8px'}}>LINK</button>
-          </div>
-          <div style={{marginTop: '6px', fontSize: '0.55rem', color: '#555', lineHeight: '1.5'}}>
-            Acesse developer.spotify.com &gt; Web API &gt; gere um token com "user-read-currently-playing"
-          </div>
-        </div>
-      )}
-
-      {token && track && (
-        <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
-          {track.art && (
-            <img src={track.art} alt="album" style={{width: '45px', height: '45px', borderRadius: '4px', border: '1px solid #1DB954', boxShadow: '0 0 8px #1DB954', flexShrink: 0}} />
-          )}
-          <div style={{flex: 1, minWidth: 0}}>
-            <div style={{color: '#fff', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '1px'}}>{track.name}</div>
-            <div style={{color: '#888', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{track.artist}</div>
-            <div style={{marginTop: '6px', height: '2px', background: 'rgba(255,255,255,0.1)', borderRadius: '1px'}}>
-              <div style={{height: '100%', width: `${progressPct}%`, background: '#1DB954', boxShadow: '0 0 5px #1DB954', borderRadius: '1px', transition: 'width 1s linear'}} />
-            </div>
-          </div>
-          <div style={{width: '10px', height: '10px', borderRadius: '50%', background: track.isPlaying ? '#1DB954' : '#555', boxShadow: track.isPlaying ? '0 0 8px #1DB954' : 'none', flexShrink: 0, animation: track.isPlaying ? 'blink 2s infinite' : 'none'}} />
-        </div>
-      )}
-
-      {token && !track && status !== 'TOKEN_EXPIRED' && (
-        <div style={{color: '#888', fontSize: '0.7rem'}}>NO_TRACK_DETECTED — Play something on Spotify</div>
-      )}
-
-      {status === 'TOKEN_EXPIRED' && (
-        <div style={{color: '#f00', fontSize: '0.65rem'}}>TOKEN_EXPIRED — Gere um novo token no Developer Console</div>
-      )}
-    </div>
-  );
-}
 
 function GlobalClock() {
   const [time, setTime] = useState(new Date());
