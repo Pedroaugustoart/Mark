@@ -525,7 +525,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                 <div className="pdf-dot" style={{background: '#fff'}}></div>
               </div>
               <div className="pdf-item" style={{cursor: 'pointer', color: 'var(--hud-cyan-dim)', marginTop: '5px'}} onClick={() => setShowPdfModal(true)}>
-                <span>&gt; MANAGE_DATABASE</span>
+                <span>&gt; MANAGE_KNOWLEDGE</span>
                 <div className="pdf-dot" style={{background: 'var(--hud-cyan-dim)'}}></div>
               </div>
               <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
