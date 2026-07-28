@@ -598,15 +598,18 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
                 <div key={i} className="pdf-item">
                   <span>{pdf.name.substring(0, 15)}</span>
                   <div className="pdf-dot"></div>
+                  <div className="pdf-line"></div>
                 </div>
               ))}
               <div className="pdf-item" style={{cursor: 'pointer', color: '#fff'}} onClick={() => fileInputRef.current.click()}>
                 <span>+ ADD_KNOWLEDGE</span>
                 <div className="pdf-dot" style={{background: '#fff'}}></div>
+                <div className="pdf-line" style={{background: 'rgba(255,255,255,0.3)', boxShadow: '0 0 5px rgba(255,255,255,0.3)'}}></div>
               </div>
               <div className="pdf-item" style={{cursor: 'pointer', color: 'var(--hud-cyan-dim)', marginTop: '5px'}} onClick={() => setShowPdfModal(true)}>
                 <span>&gt; MANAGE_KNOWLEDGE</span>
                 <div className="pdf-dot" style={{background: 'var(--hud-cyan-dim)'}}></div>
+                <div className="pdf-line" style={{background: 'rgba(0, 229, 255, 0.1)', boxShadow: 'none'}}></div>
               </div>
               <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
             </div>

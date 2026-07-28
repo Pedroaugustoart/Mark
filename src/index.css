@@ -76,6 +76,7 @@ body {
 }
 .cyber-line-vertical {
   display: none;
+  display: none;
   width: 1px;
   background: var(--hud-cyan);
   height: 100%;
@@ -650,6 +651,7 @@ body {
 
 @media (min-width: 1024px) {
   .cyber-line-vertical {
+  display: none;
     display: block;
   }
 }
@@ -712,4 +714,66 @@ body {
   height: 100%;
   z-index: 0;
   pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .chat-container-floating {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 250px;
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .cyber-line-vertical {
+    display: block;
+  }
+}
+
+.pdf-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+  width: 100%;
+  position: relative;
+}
+
+.pdf-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--hud-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--hud-cyan);
+  margin-left: 10px;
+  z-index: 2;
+}
+
+.pdf-line {
+  flex-grow: 1;
+  height: 1px;
+  background: rgba(0, 229, 255, 0.4);
+  box-shadow: 0 0 5px rgba(0, 229, 255, 0.4);
+  margin-left: 0;
+  margin-right: -40px; /* extends line to reactor */
+  z-index: 1;
+  transition: all 0.3s;
+}
+
+.pdf-node-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  overflow: visible; /* allow line to extend */
+}
+
+.pdf-list {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  z-index: 2;
 }
