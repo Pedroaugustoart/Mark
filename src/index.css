@@ -383,6 +383,9 @@ body {
   font-size: 0.8rem;
   line-height: 1.4;
   text-shadow: 0 0 2px var(--hud-cyan-dim);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 .chat-msg.user {
   color: #fff;
@@ -443,7 +446,21 @@ body {
 .chat-msg.ai ul, .chat-msg.ai ol { margin-left: 20px; margin-bottom: 10px; }
 .chat-msg.ai li { margin-bottom: 5px; }
 .chat-msg.ai a { color: var(--hud-cyan); text-decoration: underline; }
-
+.chat-msg.ai pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: rgba(0, 229, 255, 0.05);
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 2px solid var(--hud-cyan);
+}
+.chat-msg.ai code {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
 /* Cyber Modal */
 .cyber-modal-overlay {
   position: fixed;
