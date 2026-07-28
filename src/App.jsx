@@ -542,6 +542,16 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
           </div>
 
+          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem'}}>
+            <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
+              &gt; BEST_POSTING_TIMES
+            </div>
+            <div style={{color: '#fff', lineHeight: '1.6'}}>
+              SEG, TER, QUA <br />
+              <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
+            </div>
+          </div>
+
           <div style={{flexGrow: 1}}></div>
 
           <div className="atmosphere-container">
