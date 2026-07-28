@@ -129,7 +129,58 @@ function App() {
     if (savedLink) setDriveLink(savedLink);
     
     getPdfsFromDB().then(files => { if (files && files.length > 0) setPdfFiles(files); }).catch(console.error);
+    
+    // Check for daily briefing
+    const today = new Date().toLocaleDateString();
+    const lastBriefing = localStorage.getItem('mark_last_briefing');
+    if (lastBriefing !== today) {
+      localStorage.setItem('mark_last_briefing', today);
+      generateDailyBriefing();
+    }
   }, []);
+
+  const generateDailyBriefing = async () => {
+    setIsTyping(true);
+    const prompt = `ATENÇÃO: Este é um gatilho automático de inicialização do sistema (Morning Briefing).
+Como MARK (Arquiteto de Marketing IA estilo J.A.R.V.I.S.), dê o seu relatório matinal para o Dr. Pedro Augusto (Clínica Studio Oral).
+Formate a resposta com estilo cibernético e altamente corporativo.
+1. Cumprimente-o informando que os sistemas estão online e sincronizados.
+2. Apresente 2 tendências de marketing atuais e inovadoras para clínicas odontológicas de alto padrão (High-Ticket).
+3. Dê 1 ideia de conteúdo de impacto (Reels ou Stories) para ser gravado hoje para captação de leads.
+4. Termine perguntando quais são as diretrizes para a campanha de hoje.
+Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`;
+
+    try {
+      let response;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+          });
+          break; // Success
+        } catch (err) {
+          if (err.message.includes('503') && retries > 1) {
+            retries--;
+            await new Promise(r => setTimeout(r, 3000));
+          } else {
+            throw err;
+          }
+        }
+      }
+      
+      setMessages(prev => {
+        const newMsgs = [...prev, { role: 'system', content: '[ SYSTEM_BOOT ]: INICIANDO VARREDURA DE TENDÊNCIAS DE MERCADO...' }, { role: 'ai', content: response.text }];
+        localStorage.setItem('mark_messages', JSON.stringify(newMsgs));
+        return newMsgs;
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   useEffect(() => {
     if (messages.length > 0) {
