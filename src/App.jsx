@@ -202,43 +202,6 @@ function SpotifyWidget() {
   );
 }
 
-  const fetchNowPlaying = useCallback(async (t) => {
-    const activeToken = t || token;
-    if (!activeToken) return;
-    try {
-      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-        headers: { Authorization: `Bearer ${activeToken}` },
-      });
-      if (res.status === 401) {
-        setToken('');
-        localStorage.removeItem('spotify_token');
-        setStatus('TOKEN_EXPIRED');
-        setTrack(null);
-        return;
-      }
-      if (res.status === 204) {
-        setStatus('IDLE');
-        setTrack(null);
-        return;
-      }
-      const data = await res.json();
-      if (data && data.item) {
-        setTrack({
-          name: data.item.name,
-          artist: data.item.artists.map(a => a.name).join(', '),
-          art: data.item.album.images[2]?.url || data.item.album.images[0]?.url,
-          progress: data.progress_ms,
-          duration: data.item.duration_ms,
-          isPlaying: data.is_playing,
-        });
-        setStatus('STREAMING');
-      }
-    } catch {
-      setStatus('ERROR');
-    }
-  }, [token]);
-
-
 
 function GlobalClock() {
   const [time, setTime] = useState(new Date());
