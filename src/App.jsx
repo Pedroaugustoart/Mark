@@ -91,7 +91,7 @@ function GlobalClock() {
   const dayName = dayNames[time.getDay()];
 
   return (
-    <div className="date-circle-container">
+    <div className="date-circle-container glass-panel-ui" style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
       <div className="time-display">{hrs}:{mins}:{secs}</div>
       <div className="day-display">{dayName}</div>
       <div className="large-circle">
@@ -424,7 +424,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         <div className="hud-col-side">
           <GlobalClock />
           
-          <div className="drive-sync-widget" style={{ marginTop: '30px' }}>
+          <div className="drive-sync-widget glass-panel-ui" style={{ marginTop: '30px' }}>
             <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
               &gt; CLOUD_MEDIA ASSETS
             </div>
@@ -459,7 +459,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
           
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="communication-circle" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
+          <div className="communication-circle glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
             <div className="comm-ring" style={{width: '70px', height: '70px', borderColor: '#fff'}}>
               <span className="comm-text" style={{fontSize: '0.6rem', color: '#fff'}}>LOGS</span>
             </div>
@@ -473,8 +473,8 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="goals-widget">
-            <div className="communication-circle" style={{marginBottom: '10px'}}>
+          <div className="goals-widget glass-panel-ui">
+            <div className="communication-circle glass-panel-ui" style={{marginBottom: '10px'}}>
               <div className="comm-ring" style={{borderColor: 'var(--hud-cyan)'}}>
                 <span className="comm-text" style={{color: 'var(--hud-cyan)'}}>GOALS</span>
               </div>
@@ -566,7 +566,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         {/* RIGHT COLUMN */}
         <div className="hud-col-side" style={{alignItems: 'flex-end'}}>
           
-          <div className="pdf-node-container">
+          <div className="pdf-node-container glass-panel-ui">
             <div className="pdf-list">
               {pdfFiles.map((pdf, i) => (
                 <div key={i} className="pdf-item">

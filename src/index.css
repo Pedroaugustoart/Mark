@@ -75,6 +75,7 @@ body {
   box-shadow: 0 0 5px var(--hud-cyan);
 }
 .cyber-line-vertical {
+  display: none;
   width: 1px;
   background: var(--hud-cyan);
   height: 100%;
@@ -645,4 +646,21 @@ body {
 .reactor-active {
   --hud-cyan: #ffdd00 !important;
   --hud-cyan-dim: rgba(255, 221, 0, 0.4) !important;
+}
+
+@media (min-width: 1024px) {
+  .cyber-line-vertical {
+    display: block;
+  }
+}
+
+.glass-panel-ui {
+  background: rgba(0, 10, 20, 0.6);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  width: 100%;
+  box-sizing: border-box;
 }
