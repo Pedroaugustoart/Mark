@@ -46,8 +46,8 @@ function DraggableWidget({ id, isLocked, children }) {
           position: 'relative', 
           zIndex: !isLocked ? 100 : 1, 
           transition: isLocked ? 'transform 0.3s' : 'none',
-          width: size ? size.width : 'auto',
-          height: size ? size.height : 'auto',
+          width: size && size.width ? size.width : 'auto',
+          height: size && size.height ? size.height : 'auto',
           resize: !isLocked ? 'both' : 'none',
           overflow: !isLocked ? 'auto' : 'visible',
           display: 'flex',
@@ -78,9 +78,7 @@ function DraggableWidget({ id, isLocked, children }) {
             boxShadow: !isLocked ? '0 0 15px #FFD700, inset 0 0 10px #FFD700' : children.props.style?.boxShadow,
             borderColor: !isLocked ? '#FFD700' : children.props.style?.borderColor,
             pointerEvents: !isLocked ? 'none' : 'auto',
-            flex: 1,
-            width: '100%',
-            height: '100%'
+            flexGrow: 1
           }
         })}
       </div>
@@ -244,7 +242,7 @@ const deletePdfFromDB = async (id) => {
   });
 };
 
-function SpotifyWidget() {
+function SpotifyWidget(props) {
   const [track, setTrack] = useState(null);
   const [status, setStatus] = useState('DISCONNECTED');
   const [isLinked, setIsLinked] = useState(!!localStorage.getItem('spotify_refresh_token'));
@@ -322,7 +320,7 @@ function SpotifyWidget() {
   const progressPct = track ? (track.progress / track.duration) * 100 : 0;
 
   return (
-    <div className="glass-panel-ui spotify-widget" style={{borderColor: isLinked ? '#1DB954' : 'var(--hud-cyan)', boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : undefined}}>
+    <div {...props} className={`glass-panel-ui spotify-widget ${props.className || ''}`} style={{...(props.style || {}), borderColor: isLinked ? '#1DB954' : (props.style?.borderColor || 'var(--hud-cyan)'), boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : props.style?.boxShadow}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
         <span style={{fontSize: '0.6rem', color: '#1DB954', letterSpacing: '2px'}}>&gt; AUDIO_STREAM / {status}</span>
         {isLinked && (
@@ -367,7 +365,7 @@ function SpotifyWidget() {
 }
 
 
-function GlobalClock() {
+function GlobalClock(props) {
   const [time, setTime] = useState(new Date());
   
   useEffect(() => {
@@ -387,7 +385,7 @@ function GlobalClock() {
   const dayName = dayNames[time.getDay()];
 
   return (
-    <div className="date-circle-container glass-panel-ui">
+    <div {...props} className={`date-circle-container glass-panel-ui ${props.className || ''}`} style={{...(props.style || {})}}>
       <div className="time-display">{hrs}:{mins}:{secs}</div>
       <div className="day-display">{dayName}</div>
       <div className="large-circle">
@@ -417,9 +415,9 @@ function GlobalClock() {
 }
 
 // Knowledge widget overlay positioned near the reactor
-function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal }) {
+function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal, ...props }) {
   return (
-    <div className="knowledge-core-widget glass-panel-ui">
+    <div {...props} className={`knowledge-core-widget glass-panel-ui ${props.className || ''}`} style={{...(props.style || {})}}>
       <div style={{fontSize: '0.6rem', color: 'var(--hud-cyan)', letterSpacing: '2px', marginBottom: '10px'}}>
         &gt; KNOWLEDGE_BASE / {pdfFiles.length} FILES
       </div>
@@ -859,51 +857,55 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
-            <div className="widget-row">
-              <div className="widget-ring" style={{borderColor: '#fff', boxShadow: '0 0 15px #fff, inset 0 0 10px #fff'}}>
-                <span className="widget-ring-text" style={{color: '#fff'}}>LOGS</span>
-              </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>REQUEST HISTORY</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                  {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
-                </span>
+          <DraggableWidget id="logs" isLocked={isLayoutLocked}>
+            <div className="glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
+              <div className="widget-row">
+                <div className="widget-ring" style={{borderColor: '#fff', boxShadow: '0 0 15px #fff, inset 0 0 10px #fff'}}>
+                  <span className="widget-ring-text" style={{color: '#fff'}}>LOGS</span>
+                </div>
+                <div className="widget-content">
+                  <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>REQUEST HISTORY</span>
+                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
+                    {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          </DraggableWidget>
 
           <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
 
-          <div className="goals-widget glass-panel-ui" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-            <div className="widget-row">
-              <div className="widget-ring">
-                <span className="widget-ring-text">GOALS</span>
+          <DraggableWidget id="goals" isLocked={isLayoutLocked}>
+            <div className="goals-widget glass-panel-ui" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+              <div className="widget-row">
+                <div className="widget-ring">
+                  <span className="widget-ring-text">GOALS</span>
+                </div>
+                <div className="widget-content">
+                  <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>TODAY'S CAMPAIGN</span>
+                  <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
+                    {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
+                  </span>
+                </div>
               </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>TODAY'S CAMPAIGN</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                  {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
-                </span>
+              
+              <div className="tasks-list-container" style={{paddingLeft: '5px'}}>
+                {tasks.length === 0 ? (
+                  <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
+                ) : (
+                  tasks.map(task => (
+                    <div key={task.id} className="task-item">
+                      <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
+                        {task.completed ? '✓' : ''}
+                      </button>
+                      <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
+                      <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-            
-            <div className="tasks-list-container" style={{paddingLeft: '5px'}}>
-              {tasks.length === 0 ? (
-                <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
-              ) : (
-                tasks.map(task => (
-                  <div key={task.id} className="task-item">
-                    <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
-                      {task.completed ? '✓' : ''}
-                    </button>
-                    <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
-                    <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          </DraggableWidget>
         </div>
 
         {/* CENTER COLUMN */}
@@ -932,7 +934,9 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
             </div>
 
             {/* KNOWLEDGE CONNECTED TO REACTOR */}
-            <KnowledgeCore pdfFiles={pdfFiles} fileInputRef={fileInputRef} setShowPdfModal={setShowPdfModal} />
+            <DraggableWidget id="knowledge" isLocked={isLayoutLocked}>
+              <KnowledgeCore pdfFiles={pdfFiles} fileInputRef={fileInputRef} setShowPdfModal={setShowPdfModal} />
+            </DraggableWidget>
             <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
           </div>
 
@@ -1015,36 +1019,44 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
         {/* RIGHT COLUMN */}
         <div className="hud-col-side right-panel" style={{alignItems: 'flex-end'}}>
           
-          <SpotifyWidget />
+          <DraggableWidget id="spotify_right" isLocked={isLayoutLocked}>
+            <SpotifyWidget />
+          </DraggableWidget>
 
-          <div style={{marginTop: '30px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8'}}>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
-          </div>
+          <DraggableWidget id="social_sync" isLocked={isLayoutLocked}>
+            <div style={{marginTop: '30px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8', border: '1px solid var(--hud-cyan)', padding: '15px', borderRadius: '4px', background: 'rgba(4, 10, 16, 0.8)'}}>
+              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
+              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
+              <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
+              <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
+            </div>
+          </DraggableWidget>
 
-          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem'}}>
-            <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
-              &gt; BEST_POSTING_TIMES
+          <DraggableWidget id="posting_times" isLocked={isLayoutLocked}>
+            <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem', border: '1px solid var(--hud-cyan)', padding: '15px', borderRadius: '4px', background: 'rgba(4, 10, 16, 0.8)'}}>
+              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
+                &gt; BEST_POSTING_TIMES
+              </div>
+              <div style={{color: '#fff', lineHeight: '1.6'}}>
+                SEG, TER, QUA <br />
+                <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
+              </div>
             </div>
-            <div style={{color: '#fff', lineHeight: '1.6'}}>
-              SEG, TER, QUA <br />
-              <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
-            </div>
-          </div>
+          </DraggableWidget>
 
           <div style={{flexGrow: 1}}></div>
 
-          <div className="atmosphere-container">
-            <div className="atmosphere-label">
-              <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
-              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
+          <DraggableWidget id="market_heat" isLocked={isLayoutLocked}>
+            <div className="atmosphere-container">
+              <div className="atmosphere-label">
+                <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
+                <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
+              </div>
+              <div className="atmosphere-circle">
+                94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
+              </div>
             </div>
-            <div className="atmosphere-circle">
-              94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
-            </div>
-          </div>
+          </DraggableWidget>
 
         </div>
 
