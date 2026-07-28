@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Particles from '@tsparticles/react';
+import { loadSlim } from '@tsparticles/slim';
 import * as pdfjsLib from 'pdfjs-dist';
 import { processFileForRAG, searchRelevantChunks, deleteFileChunks } from './rag';
 import './index.css';
@@ -133,6 +135,28 @@ function App() {
   const [ragProgress, setRagProgress] = useState({ current: 0, total: 0 });
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  
+
+
+  const particlesOptions = {
+    background: { color: { value: "transparent" } },
+    fpsLimit: 60,
+    interactivity: {
+      events: { onHover: { enable: true, mode: "grab" } },
+      modes: { grab: { distance: 150, links: { opacity: 0.5 } } }
+    },
+    particles: {
+      color: { value: "#00e5ff" },
+      links: { color: "#00e5ff", distance: 150, enable: true, opacity: 0.25, width: 1 },
+      move: { direction: "none", enable: true, outModes: { default: "bounce" }, random: false, speed: 0.8, straight: false },
+      number: { density: { enable: true, width: 800 }, value: 90 },
+      opacity: { value: 0.4 },
+      shape: { type: "circle" },
+      size: { value: { min: 1, max: 2.5 } },
+    },
+    detectRetina: true,
+  };
+
 
   useEffect(() => {
     const savedMessages = localStorage.getItem('mark_messages');
@@ -419,6 +443,8 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
       )}
 
       <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
+      <Particles id="tsparticles" options={particlesOptions} init={async (engine) => { await loadSlim(engine); }} />
+
         
         {/* LEFT COLUMN */}
         <div className="hud-col-side">
