@@ -37,7 +37,7 @@ function DraggableWidget({ id, isLocked, children }) {
   };
 
   return (
-    <Draggable disabled={isLocked} position={position} onStop={handleStop} handle=".drag-handle">
+    <Draggable disabled={isLocked} defaultPosition={position} onStop={handleStop} handle=".drag-handle">
       <div 
         className={!isLocked ? 'draggable-unlocked' : ''}
         style={{ 
@@ -907,11 +907,11 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
         {/* CENTER COLUMN */}
         <div className="hud-col-center">
           <div className="giant-reactor">
-            <div className="reactor-core"></div>
-            <div className="reactor-ring ring-1"></div>
-            <div className="reactor-ring ring-2"></div>
-            <div className="reactor-ring ring-3"></div>
-            <div className="reactor-sparks"></div>
+            <div className="giant-ring ring-1"></div>
+            <div className="giant-ring ring-2"></div>
+            <div className="giant-ring ring-3"></div>
+            <div className="giant-ring ring-4"></div>
+            <div className="giant-ring ring-5"></div>
 
             <div className="orbit-container">
               <div className="orbit-text orbit-1">LEADS_SYNC</div>
