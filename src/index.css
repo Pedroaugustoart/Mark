@@ -38,6 +38,7 @@ body {
   top: 0; left: 0; right: 0; bottom: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
   pointer-events: none;
+  opacity: 0;
 }
 
 #root {
@@ -653,10 +654,11 @@ body {
 
 /* ANTIGRAVITY HUD DESIGN */
 .glass-panel {
-  background: rgba(0, 15, 25, 0.4);
+  background: rgba(0, 5, 10, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(0, 229, 255, 0.15);
+  border-top: 1px solid rgba(0, 229, 255, 0.4);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(0, 229, 255, 0.05);
   border-radius: 12px;
   transition: all 0.3s ease-out;
@@ -687,6 +689,4 @@ body {
   transform: perspective(1000px) rotateY(-5deg);
 }
 
-.hud-container {
-  perspective: 1500px;
-}
+

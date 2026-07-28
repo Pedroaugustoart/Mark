@@ -423,7 +423,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         
         {/* LEFT COLUMN */}
         <Draggable handle=".draggable-handle" bounds="parent">
-          <div className="hud-col-side left-panel-3d" style={{zIndex: 10}}>
+          <div className="hud-col-side left-panel-3d" style={{position: "absolute", left: "50px", top: "50px", zIndex: 10}}>
             <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%'}}>::: DRAG :::</div>
           <div className="glass-panel" style={{width: "100%", marginBottom: "15px"}}><GlobalClock /></div>
           
@@ -509,7 +509,7 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
         </Draggable>
 
         {/* CENTER COLUMN */}
-        <div className="hud-col-center">
+        
           <Draggable handle=".giant-reactor" bounds="parent">
           <div className="giant-reactor" style={{cursor: 'move'}}>
             <div className="giant-ring ring-1"></div>
@@ -571,11 +571,10 @@ Use formatação Markdown. Seja objetivo, analítico e traga insights valiosos.`
             </form>
           </div>
           </Draggable>
-        </div>
 
         {/* RIGHT COLUMN */}
         <Draggable handle=".draggable-handle" bounds="parent">
-          <div className="hud-col-side right-panel-3d" style={{alignItems: 'flex-end', zIndex: 10}}>
+          <div className="hud-col-side right-panel-3d" style={{position: "absolute", right: "50px", top: "50px", zIndex: 10}}>
             <div className="draggable-handle" style={{cursor: 'move', color: 'var(--hud-cyan-dim)', fontSize: '0.6rem', padding: '5px', width: '100%', textAlign: 'right'}}>::: DRAG :::</div>
           
           <div className="pdf-node-container glass-panel" style={{width: "100%", boxSizing: "border-box"}}>
