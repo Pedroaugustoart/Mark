@@ -596,7 +596,7 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
       const history = messages.filter(m => m.role !== 'system').map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
       
       let contextText = '';
-      if (pdfFiles.length > 0 && userText) {
+      if (pdfFiles.length > 0 && userText && userText.toLowerCase().includes('mark')) {
         setMessages(prev => [...prev, { role: 'system', content: '[ SYSTEM ]: VECTOR SEARCH ON DATABASE...' }]);
         const relevantChunks = await searchRelevantChunks(userText, ai, 5);
         if (relevantChunks.length > 0) {
