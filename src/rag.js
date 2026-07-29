@@ -84,7 +84,7 @@ export const processFileForRAG = async (fileId, text, aiClient, onProgress) => {
     const chunkText = chunks[i];
     try {
       const response = await aiClient.models.embedContent({
-        model: 'gemini-embedding-2',
+        model: 'text-embedding-004',
         contents: chunkText,
       });
       const embedding = response.embeddings[0].values;
@@ -106,7 +106,7 @@ export const processFileForRAG = async (fileId, text, aiClient, onProgress) => {
 export const searchRelevantChunks = async (query, aiClient, topK = 5) => {
   try {
     const response = await aiClient.models.embedContent({
-      model: 'gemini-embedding-2',
+      model: 'text-embedding-004',
       contents: query,
     });
     const queryEmbedding = response.embeddings[0].values;

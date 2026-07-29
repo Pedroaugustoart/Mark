@@ -648,7 +648,7 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
     } catch (error) {
       let errorMsg = error.message;
       if (errorMsg.includes('503')) errorMsg = "Servidores em alta demanda (503). Tente novamente.";
-      else if (errorMsg.includes('429')) errorMsg = "Cota da API excedida.";
+      else if (errorMsg.includes('429')) errorMsg = "RATE LIMIT (429): Você excedeu as 15 requisições por minuto da API gratuita. Aguarde 60 segundos.";
       setMessages(prev => [...prev, { role: 'ai', content: `[ FALHA ]: ${errorMsg}` }]);
     } finally {
       setIsTyping(false);
