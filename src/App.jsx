@@ -613,7 +613,7 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
 
       let response;
       let retries = 3;
-      const fallbackModels = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+      const fallbackModels = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'];
       let modelIndex = 0;
 
       while (retries > 0) {
@@ -624,7 +624,7 @@ Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
           });
           break; // Success
         } catch (err) {
-          if (err.message.includes('503') || err.message.includes('429')) {
+          if (err.message.includes('503') || err.message.includes('429') || err.message.includes('404')) {
             modelIndex++;
             if (modelIndex >= fallbackModels.length) {
               modelIndex = 0; // Wrap around if all models fail
