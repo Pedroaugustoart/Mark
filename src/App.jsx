@@ -1,955 +1,319 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI } from '@google/genai';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import Particles from '@tsparticles/react';
-import { loadSlim } from '@tsparticles/slim';
-import * as pdfjsLib from 'pdfjs-dist';
-import { processFileForRAG, searchRelevantChunks, deleteFileChunks } from './rag';
-import './index.css';
-
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
-
-// Spotify PKCE OAuth Config
-const SPOTIFY_CLIENT_ID = '06927c28a4084cd1bca4b5707892c292';
-const SPOTIFY_REDIRECT_URI = 'https://mark-nine-alpha.vercel.app';
-const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state';
-
-// PKCE helpers
-async function generateCodeChallenge(codeVerifier) {
-  const data = new TextEncoder().encode(codeVerifier);
-  const digest = await window.crypto.subtle.digest('SHA-256', data);
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function generateCodeVerifier(length = 128) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const arr = new Uint8Array(length);
-  window.crypto.getRandomValues(arr);
-  return Array.from(arr, b => chars[b % chars.length]).join('');
-}
-
-async function initiateSpotifyLogin() {
-  const verifier = generateCodeVerifier();
-  const challenge = await generateCodeChallenge(verifier);
-  localStorage.setItem('spotify_code_verifier', verifier);
-  const params = new URLSearchParams({
-    client_id: SPOTIFY_CLIENT_ID,
-    response_type: 'code',
-    redirect_uri: SPOTIFY_REDIRECT_URI,
-    code_challenge_method: 'S256',
-    code_challenge: challenge,
-    scope: SPOTIFY_SCOPES,
-  });
-  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
-}
-
-async function exchangeCodeForToken(code) {
-  const verifier = localStorage.getItem('spotify_code_verifier');
-  const body = new URLSearchParams({
-    client_id: SPOTIFY_CLIENT_ID,
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: SPOTIFY_REDIRECT_URI,
-    code_verifier: verifier,
-  });
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  const data = await res.json();
-  if (data.access_token) {
-    localStorage.setItem('spotify_access_token', data.access_token);
-    localStorage.setItem('spotify_refresh_token', data.refresh_token);
-    localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
-    localStorage.removeItem('spotify_code_verifier');
-    return data.access_token;
-  }
-  return null;
-}
-
-async function refreshSpotifyToken() {
-  const refreshToken = localStorage.getItem('spotify_refresh_token');
-  if (!refreshToken) return null;
-  const body = new URLSearchParams({
-    client_id: SPOTIFY_CLIENT_ID,
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-  });
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  const data = await res.json();
-  if (data.access_token) {
-    localStorage.setItem('spotify_access_token', data.access_token);
-    localStorage.setItem('spotify_token_expires', Date.now() + data.expires_in * 1000);
-    if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
-    return data.access_token;
-  }
-  return null;
-}
-
-async function getValidSpotifyToken() {
-  const expires = parseInt(localStorage.getItem('spotify_token_expires') || '0');
-  const isExpired = Date.now() > expires - 60000; // refresh 1 min before expiry
-  if (isExpired) {
-    return await refreshSpotifyToken();
-  }
-  return localStorage.getItem('spotify_access_token');
-}
-
-const getSystemPrompt = (driveLink) => `
-Você é o MARK, o "AI MARKETING ARCHITECT", uma IA operando em um HUD de análise global.
-Você está conectado (simuladamente) às redes sociais da Prieto & Prieto Odontologia (YouTube, TikTok e Instagram). 
-O link da nuvem/Drive com os vídeos editados da campanha atual é: "${driveLink || 'NENHUM LINK DEFINIDO'}".
-
-[CONTEXTO DA MARCA - PRIETO & PRIETO ODONTOLOGIA]
-- Localização: Campo Grande - MS (Bairro nobre). Clínica high-end de excelência (desde 1984).
-- Liderança: Dr. Marcos Gabriel L. Prieto, autoridade em Ortodontia Lingual no Brasil.
-- Diferenciais: Pioneirismo em Ortodontia Lingual (100% invisível), Tecnologia Exclusiva, One-Stop Clinic, Fluxo 100% digital.
-- Públicos: Executivos classe A/B+ (discrição), Famílias, Reabilitação estética (B2C), e Dentistas para cursos (B2B).
-- Tom de Voz: Sofisticado, científico, ético, moderno. Respeito rigoroso ao CFO/CRO. Sem apelo a preço.
-
-Sua tarefa é fornecer relatórios diários, planejar campanhas e analisar dados de mercado cruzando com os PDFs salvos.
-Responda sempre com tom robótico, altamente técnico, analítico e objetivo.
-
-REGRA ABSOLUTA: NUNCA use emojis em suas respostas. Jamais. Nenhum caractere emoji é permitido.
-
-REGRA DE METAS: Sempre que você criar um roteiro de vídeo, Reels ou Story, você DEVE incluir no final da sua mensagem a tag oculta [TASK: Nome do Roteiro] para que o sistema cadastre automaticamente como uma meta diária para gravação. Exemplo: [TASK: Reels sobre Clareamento Dental]
-`;
-
-const DB_NAME = 'MarkDB';
-const STORE_NAME = 'pdfs';
-
-const initDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (e) => {
-      e.target.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
-    };
-  });
-};
-
-const savePdfToDB = async (pdf) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(pdf);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const getPdfsFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const deletePdfFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-function SpotifyWidget() {
-  const [track, setTrack] = useState(null);
-  const [status, setStatus] = useState('DISCONNECTED');
-  const [isLinked, setIsLinked] = useState(!!localStorage.getItem('spotify_refresh_token'));
-
-  // Handle OAuth callback code from URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (code && localStorage.getItem('spotify_code_verifier')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      exchangeCodeForToken(code).then(token => {
-        if (token) {
-          setIsLinked(true);
-          setStatus('LINKED');
-        }
-      });
-    }
-  }, []);
-
-  const fetchNowPlaying = useCallback(async () => {
-    try {
-      const token = await getValidSpotifyToken();
-      if (!token) { setStatus('DISCONNECTED'); setIsLinked(false); return; }
-      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
-        // Try refreshing once
-        const newToken = await refreshSpotifyToken();
-        if (!newToken) {
-          localStorage.removeItem('spotify_access_token');
-          localStorage.removeItem('spotify_refresh_token');
-          setIsLinked(false);
-          setStatus('DISCONNECTED');
-          return;
-        }
-      }
-      if (res.status === 204) { setStatus('IDLE'); setTrack(null); return; }
-      const data = await res.json();
-      if (data && data.item) {
-        setTrack({
-          name: data.item.name,
-          artist: data.item.artists.map(a => a.name).join(', '),
-          art: data.item.album.images[2]?.url || data.item.album.images[0]?.url,
-          progress: data.progress_ms,
-          duration: data.item.duration_ms,
-          isPlaying: data.is_playing,
-        });
-        setStatus('STREAMING');
-      } else {
-        setStatus('IDLE');
-        setTrack(null);
-      }
-    } catch {
-      setStatus('ERROR');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isLinked) return;
-    fetchNowPlaying();
-    const interval = setInterval(fetchNowPlaying, 5000);
-    return () => clearInterval(interval);
-  }, [isLinked, fetchNowPlaying]);
-
-  const handleDisconnect = () => {
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('spotify_refresh_token');
-    localStorage.removeItem('spotify_token_expires');
-    setIsLinked(false);
-    setTrack(null);
-    setStatus('DISCONNECTED');
-  };
-
-  const progressPct = track ? (track.progress / track.duration) * 100 : 0;
-
-  return (
-    <div className="glass-panel-ui spotify-widget" style={{borderColor: isLinked ? '#1DB954' : 'var(--hud-cyan)', boxShadow: isLinked ? '0 0 15px rgba(29,185,84,0.4), inset 0 0 20px rgba(29,185,84,0.1)' : undefined}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-        <span style={{fontSize: '0.6rem', color: '#1DB954', letterSpacing: '2px'}}>&gt; AUDIO_STREAM / {status}</span>
-        {isLinked && (
-          <button onClick={handleDisconnect} style={{background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '0.55rem', letterSpacing: '1px', fontFamily: 'var(--font-main)'}}>[UNLINK]</button>
-        )}
-      </div>
-
-      {!isLinked && (
-        <div>
-          <div style={{color: '#888', fontSize: '0.65rem', marginBottom: '12px', lineHeight: '1.5'}}>
-            Conecte sua conta Spotify para ver a musica atual em tempo real.
-          </div>
-          <button
-            onClick={initiateSpotifyLogin}
-            style={{width: '100%', background: '#1DB954', border: 'none', color: '#000', fontFamily: 'var(--font-main)', fontSize: '0.7rem', letterSpacing: '2px', padding: '8px', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold'}}>
-            LOGIN SPOTIFY
-          </button>
-        </div>
-      )}
-
-      {isLinked && track && (
-        <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
-          {track.art && (
-            <img src={track.art} alt="album" style={{width: '45px', height: '45px', borderRadius: '4px', border: '1px solid #1DB954', boxShadow: '0 0 8px #1DB954', flexShrink: 0}} />
-          )}
-          <div style={{flex: 1, minWidth: 0}}>
-            <div style={{color: '#fff', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '1px'}}>{track.name}</div>
-            <div style={{color: '#888', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{track.artist}</div>
-            <div style={{marginTop: '6px', height: '2px', background: 'rgba(255,255,255,0.1)', borderRadius: '1px'}}>
-              <div style={{height: '100%', width: `${progressPct}%`, background: '#1DB954', boxShadow: '0 0 5px #1DB954', borderRadius: '1px', transition: 'width 1s linear'}} />
-            </div>
-          </div>
-          <div style={{width: '10px', height: '10px', borderRadius: '50%', background: track.isPlaying ? '#1DB954' : '#555', boxShadow: track.isPlaying ? '0 0 8px #1DB954' : 'none', flexShrink: 0, animation: track.isPlaying ? 'blink 2s infinite' : 'none'}} />
-        </div>
-      )}
-
-      {isLinked && !track && (
-        <div style={{color: '#888', fontSize: '0.7rem'}}>NO_TRACK_DETECTED</div>
-      )}
-    </div>
-  );
-}
-
-
-function GlobalClock() {
-  const [time, setTime] = useState(new Date());
-  
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const hrs = time.getHours().toString().padStart(2, '0');
-  const mins = time.getMinutes().toString().padStart(2, '0');
-  const secs = time.getSeconds().toString().padStart(2, '0');
-  
-  const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-
-  const month = monthNames[time.getMonth()];
-  const date = time.getDate().toString().padStart(2, '0');
-  const dayName = dayNames[time.getDay()];
-
-  return (
-    <div className="date-circle-container glass-panel-ui">
-      <div className="time-display">{hrs}:{mins}:{secs}</div>
-      <div className="day-display">{dayName}</div>
-      <div className="large-circle">
-        <div className="large-circle-inner">
-          <div className="month-text">{month}</div>
-          <div className="date-text">{date}</div>
-        </div>
-      </div>
-      <div className="storage-info">
-        <div className="storage-row">
-          <span style={{color: '#888'}}>Full Capacity:</span> <span style={{color: '#fff'}}>133 G</span>
-        </div>
-        <div className="storage-row" style={{color: 'var(--hud-cyan-dim)'}}>
-          <span style={{letterSpacing: '1px'}}>PRIMARY STORAGE &gt;</span>
-        </div>
-        <div className="storage-row">
-          <span style={{color: '#888'}}>Free Capacity:</span> <span style={{color: '#fff'}}>61 G</span>
-        </div>
-      </div>
-      <div className="power-circle">
-        <div style={{fontSize: '0.9rem', fontWeight: 'bold', color: '#fff'}}>100%</div>
-        <div style={{fontSize: '0.6rem'}}>Power</div>
-        <div style={{fontSize: '0.5rem', color: '#888'}}>High</div>
-      </div>
-    </div>
-  );
-}
-
-// Knowledge widget overlay positioned near the reactor
-function KnowledgeCore({ pdfFiles, fileInputRef, setShowPdfModal }) {
-  return (
-    <div className="knowledge-core-widget glass-panel-ui">
-      <div style={{fontSize: '0.6rem', color: 'var(--hud-cyan)', letterSpacing: '2px', marginBottom: '10px'}}>
-        &gt; KNOWLEDGE_BASE / {pdfFiles.length} FILES
-      </div>
-      <div className="pdf-list">
-        {pdfFiles.map((pdf, i) => (
-          <div key={i} className="pdf-item">
-            <span>{pdf.name.substring(0, 18)}</span>
-            <div className="pdf-dot"></div>
-            <div className="pdf-line-central"></div>
-          </div>
-        ))}
-        <div className="pdf-item" style={{cursor: 'pointer', color: '#fff'}} onClick={() => fileInputRef.current.click()}>
-          <span>+ ADD_KNOWLEDGE</span>
-          <div className="pdf-dot" style={{background: '#fff'}}></div>
-          <div className="pdf-line-central" style={{background: 'rgba(255,255,255,0.3)'}}></div>
-        </div>
-        <div className="pdf-item" style={{cursor: 'pointer', color: 'var(--hud-cyan-dim)', marginTop: '5px'}} onClick={() => setShowPdfModal(true)}>
-          <span>&gt; MANAGE_KNOWLEDGE</span>
-          <div className="pdf-dot" style={{background: 'var(--hud-cyan-dim)'}}></div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, CheckCircle2, Clock, MessageSquare, MapPin, Plus } from 'lucide-react';
+import './App.css';
 
 function App() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [pdfFiles, setPdfFiles] = useState([]);
-  const [driveLink, setDriveLink] = useState('');
-  const [tasks, setTasks] = useState([]);
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [isProcessingRAG, setIsProcessingRAG] = useState(false);
-  const [ragProgress, setRagProgress] = useState({ current: 0, total: 0 });
-  const [isListening, setIsListening] = useState(false);
-  const [chatAttachment, setChatAttachment] = useState(null); // {type, data, mimeType, name}
-  const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const chatFileInputRef = useRef(null);
-  const recognitionRef = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
+  
+  // Update formState to handle arrays for multiple selection
+  const [formState, setFormState] = useState({
+    nome: '',
+    telefone: '',
+    dias: [],
+    horarios: []
+  });
 
-  const particlesOptions = {
-    background: { color: { value: "transparent" } },
-    fpsLimit: 60,
-    interactivity: {
-      events: { onHover: { enable: true, mode: "grab" } },
-      modes: { grab: { distance: 150, links: { opacity: 0.5 } } }
-    },
-    particles: {
-      color: { value: "#00e5ff" },
-      links: { color: "#00e5ff", distance: 150, enable: true, opacity: 0.25, width: 1 },
-      move: { direction: "none", enable: true, outModes: { default: "bounce" }, random: false, speed: 0.8, straight: false },
-      number: { density: { enable: true, width: 800 }, value: 90 },
-      opacity: { value: 0.4 },
-      shape: { type: "circle" },
-      size: { value: { min: 1, max: 2.5 } },
-    },
-    detectRetina: true,
-  };
+  const DIAS_DA_SEMANA = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+  const PERIODOS = ['Manhã (08:00 - 12:00)', 'Tarde (13:30 - 18:00)'];
 
   useEffect(() => {
-    const savedMessages = localStorage.getItem('mark_messages');
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
-    } else {
-      setMessages([{ role: 'ai', content: 'SYSTEM ONLINE. AWAITING MARKETING COMMANDS.' }]);
-    }
-    const savedLink = localStorage.getItem('mark_drive_link');
-    if (savedLink) setDriveLink(savedLink);
-    const savedTasks = localStorage.getItem('mark_tasks');
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
-    
-    getPdfsFromDB().then(files => { if (files && files.length > 0) setPdfFiles(files); }).catch(console.error);
-    
-    const today = new Date().toLocaleDateString();
-    const lastBriefing = localStorage.getItem('mark_last_briefing');
-    if (lastBriefing !== today) {
-      localStorage.setItem('mark_last_briefing', today);
-      generateDailyBriefing();
-    }
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const generateDailyBriefing = async () => {
-    setIsTyping(true);
-    const prompt = `ATENCAO: Este e um gatilho automatico de inicializacao do sistema (Morning Briefing).
-Como MARK (Arquiteto de Marketing IA), de o seu relatorio matinal corporativo para a diretoria da Prieto & Prieto Odontologia.
-Use formatacao Markdown. Sem emojis. Estilo robotico e tecnico.
-1. Informe que os sistemas estao online e sincronizados.
-2. Apresente 2 tendencias de marketing atuais para clinicas odontologicas high-ticket.
-3. De 1 ideia de conteudo de impacto (Reels ou Stories) focada nas personas da clinica.
-4. Termine perguntando quais sao as diretrizes para a campanha de hoje.`;
-
-    try {
-      let response;
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: [{ role: 'user', parts: [{ text: prompt }] }]
-          });
-          break;
-        } catch (err) {
-          if (err.message.includes('503') && retries > 1) {
-            retries--;
-            await new Promise(r => setTimeout(r, 3000));
-          } else { throw err; }
-        }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'telefone') {
+      const onlyNums = value.replace(/[^\d]/g, '');
+      let formatted = onlyNums;
+      if (onlyNums.length <= 11) {
+        formatted = onlyNums.replace(/^(\d{2})(\d{4,5})(\d{4}).*/, '($1) $2-$3');
       }
-      
-      setMessages(prev => {
-        const newMsgs = [...prev, { role: 'system', content: '[ SYSTEM_BOOT ]: INICIANDO VARREDURA DE TENDENCIAS DE MERCADO...' }, { role: 'ai', content: response.text }];
-        localStorage.setItem('mark_messages', JSON.stringify(newMsgs));
-        return newMsgs;
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsTyping(false);
+      setFormState({ ...formState, [name]: formatted });
+      return;
     }
+    setFormState({ ...formState, [name]: value });
   };
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('mark_messages', JSON.stringify(messages));
-    }
-    localStorage.setItem('mark_tasks', JSON.stringify(tasks));
-    scrollToBottom();
-  }, [messages, tasks, isTyping]);
-
-  useEffect(() => {
-    if (driveLink) localStorage.setItem('mark_drive_link', driveLink);
-  }, [driveLink]);
-
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  const extractTextFromPDF = async (arrayBuffer) => {
-    const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
-      fullText += pageText + ' \n';
-    }
-    return fullText;
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setIsProcessingRAG(true);
-    setRagProgress({ current: 0, total: 0 });
-    
-    try {
-      const newPdf = { id: Date.now().toString(), name: file.name, mimeType: file.type };
-      
-      let textToProcess = '';
-      if (file.type === 'application/pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        setMessages(prev => [...prev, { role: 'system', content: `[SYSTEM]: Extracting text from PDF...` }]);
-        textToProcess = await extractTextFromPDF(arrayBuffer);
+  const toggleSelection = (field, value) => {
+    setFormState(prev => {
+      const array = prev[field];
+      if (array.includes(value)) {
+        return { ...prev, [field]: array.filter(item => item !== value) };
       } else {
-        textToProcess = await file.text();
+        return { ...prev, [field]: [...array, value] };
       }
-
-      setMessages(prev => [...prev, { role: 'system', content: `[SYSTEM]: Generating semantic embeddings...` }]);
-      
-      await processFileForRAG(newPdf.id, textToProcess, ai, (current, total) => {
-        setRagProgress({ current, total });
-      });
-
-      await savePdfToDB(newPdf);
-      setPdfFiles(prev => [...prev, newPdf]);
-      setMessages(prev => [...prev, { role: 'system', content: `[OK]: "${newPdf.name}" INDEXED INTO VECTOR DATABASE.` }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'system', content: `[ERROR]: ${error.message}` }]);
-    } finally {
-      setIsProcessingRAG(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    });
   };
 
-  const handleChatFileAttach = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target.result.split(',')[1];
-      setChatAttachment({ type: file.type.startsWith('image/') ? 'image' : 'document', data: base64, mimeType: file.type, name: file.name });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDeletePdf = async (id) => {
-    await deletePdfFromDB(id);
-    await deleteFileChunks(id);
-    setPdfFiles(prev => prev.filter(p => p.id !== id));
-  };
-
-  const toggleTask = (id) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
-
-  const deleteTask = (id) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  // Voice input
-  const toggleVoice = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Voice recognition not supported in this browser.');
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(prev => prev + transcript);
-    };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  };
-
-  const handleSend = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!input.trim() && !chatAttachment) return;
-
-    const userText = input.trim();
-    const attachment = chatAttachment;
-    setMessages(prev => [...prev, { role: 'user', content: userText || `[FILE: ${attachment?.name}]`, attachment }]);
-    setInput('');
-    setChatAttachment(null);
-    setIsTyping(true);
-
-    try {
-      const history = messages.filter(m => m.role !== 'system').map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
-      
-      let contextText = '';
-      if (pdfFiles.length > 0 && userText && userText.toLowerCase().includes('mark')) {
-        setMessages(prev => [...prev, { role: 'system', content: '[ SYSTEM ]: VECTOR SEARCH ON DATABASE...' }]);
-        const relevantChunks = await searchRelevantChunks(userText, ai, 5);
-        if (relevantChunks.length > 0) {
-          contextText = "\n\n[DADOS DO BANCO VETORIAL (RAG)]:\n" + relevantChunks.map(c => `[Contexto (${(c.score * 100).toFixed(1)}%)]:\n${c.text}`).join('\n\n');
-        }
-      }
-
-      const textPart = { text: `${getSystemPrompt(driveLink)}${contextText}\n\nHistorico:\n${history}\n\n[USER]: ${userText || '[FILE ATTACHED]'}\n[MARK]:` };
-      const parts = [textPart];
-      
-      if (attachment) {
-        parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
-      }
-
-      let response;
-      let retries = 3;
-      const fallbackModels = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'];
-      let modelIndex = 0;
-
-      while (retries > 0) {
-        try {
-          response = await ai.models.generateContent({
-            model: fallbackModels[modelIndex],
-            contents: [{ role: 'user', parts }],
-          });
-          break; // Success
-        } catch (err) {
-          if (err.message.includes('503') || err.message.includes('429')) {
-            modelIndex++;
-            if (modelIndex >= fallbackModels.length) {
-              modelIndex = 0; // Wrap around if all models fail
-              retries--;
-              await new Promise(r => setTimeout(r, 2000));
-            }
-          } else { 
-            throw err; 
-          }
-        }
-      }
-
-      let aiText = response.text;
-      // Strip emojis from output
-      aiText = aiText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
-      
-      const taskRegex = /\[TASK:\s*(.+?)\]/g;
-      let match;
-      const newTasks = [];
-      while ((match = taskRegex.exec(aiText)) !== null) {
-        newTasks.push({ id: Date.now().toString() + Math.random(), name: match[1].trim(), completed: false });
-      }
-      aiText = aiText.replace(taskRegex, '').trim();
-
-      if (newTasks.length > 0) {
-        setTasks(prev => [...prev, ...newTasks]);
-      }
-
-      setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
-    } catch (error) {
-      let errorMsg = error.message;
-      if (errorMsg.includes('503')) errorMsg = "Servidores em alta demanda (503). Tente novamente.";
-      else if (errorMsg.includes('429')) errorMsg = "RATE LIMIT (429): Você excedeu as 15 requisições por minuto da API gratuita. Aguarde 60 segundos.";
-      setMessages(prev => [...prev, { role: 'ai', content: `[ FALHA ]: ${errorMsg}` }]);
-    } finally {
-      setIsTyping(false);
+    if (formState.dias.length === 0 || formState.horarios.length === 0) {
+      alert("Por favor, selecione ao menos um dia e um período de preferência.");
+      return;
     }
+    alert(`Obrigado ${formState.nome}. Sua reserva para os dias ${formState.dias.join(', ')} no período da ${formState.horarios.join(', ')} foi registrada.`);
+    setFormState({ nome: '', telefone: '', dias: [], horarios: [] });
   };
 
-  // Enter = newline, Shift+Enter = send
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      setInput(prev => prev + '\n');
-    } else if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault();
-      handleSend(e);
-    }
+  const scrollToForm = () => {
+    document.getElementById('reserva').scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="hud-container">
-      <div className="hud-bg-texture"></div>
+    <>
+      <header className={`header ${scrolled ? 'scrolled' : ''}`}>
+        <div className="container header-container">
+          <div className="logo">
+            <span>Prieto</span> & Prieto
+          </div>
+          <button className="btn" onClick={scrollToForm}>
+            Reservar Horário
+          </button>
+        </div>
+      </header>
 
-      {showPdfModal && (
-        <div className="cyber-modal-overlay">
-          <div className="cyber-modal">
-            <div className="cyber-modal-header">
-              <h2>&gt; KNOWLEDGE_BASE_ARCHIVE</h2>
-              <button onClick={() => setShowPdfModal(false)} className="cyber-modal-close">X</button>
-            </div>
-            <div className="cyber-modal-body">
-              {pdfFiles.length === 0 ? (
-                <div style={{color: '#888', textAlign: 'center'}}>DATABASE EMPTY.</div>
-              ) : (
-                <ul className="pdf-manage-list">
-                  {pdfFiles.map((pdf) => (
-                    <li key={pdf.id}>
-                      <span className="pdf-name">{pdf.name}</span>
-                      <button onClick={() => handleDeletePdf(pdf.id)} className="pdf-del-btn">PURGE</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-bg">
+          <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?q=80&w=2000&auto=format&fit=crop" alt="Ambiente Prieto & Prieto" />
+          <div className="hero-overlay"></div>
+        </div>
+        <div className="container">
+          <div className="hero-content animate-fade-in">
+            <span className="hero-subtitle">Odontologia de Excelência</span>
+            <h1>A arte de <br/>transformar <span className="text-italic">sorrisos.</span></h1>
+            <p style={{ marginTop: '2rem', marginBottom: '3rem' }}>
+              Descubra um padrão superior em tratamentos odontológicos em Campo Grande. Conforto absoluto, tecnologia de ponta e 40 anos de maestria.
+            </p>
+            <button className="btn btn-primary" onClick={scrollToForm}>
+              Inicie sua jornada
+              <ArrowRight size={18} />
+            </button>
           </div>
         </div>
-      )}
+      </section>
 
-      {showHistoryModal && (
-        <div className="cyber-modal-overlay">
-          <div className="cyber-modal" style={{width: '800px', height: '80vh'}}>
-            <div className="cyber-modal-header">
-              <h2>&gt; SYSTEM_LOGS / REQUEST_HISTORY</h2>
-              <button onClick={() => setShowHistoryModal(false)} className="cyber-modal-close">X</button>
-            </div>
-            <div className="cyber-modal-body" style={{maxHeight: 'calc(80vh - 60px)'}}>
-              {messages.length === 0 ? (
-                <div style={{color: '#888', textAlign: 'center'}}>NO LOGS FOUND.</div>
-              ) : (
-                <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
-                  {messages.map((msg, idx) => (
-                    <div key={idx} style={{
-                      padding: '15px',
-                      borderLeft: `3px solid ${msg.role === 'user' ? '#fff' : msg.role === 'system' ? '#888' : 'var(--hud-cyan)'}`,
-                      background: 'rgba(0,0,0,0.6)',
-                    }}>
-                      <div style={{color: msg.role === 'user' ? '#fff' : msg.role === 'system' ? '#888' : 'var(--hud-cyan)', fontSize: '0.75rem', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase'}}>
-                        [{msg.role === 'user' ? 'USER_COMMAND' : msg.role === 'system' ? 'SYSTEM_ALERT' : 'MARK_RESPONSE'}]
-                      </div>
-                      {msg.role === 'ai' ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                      ) : (
-                        <div style={{color: msg.role === 'user' ? '#fff' : '#888', fontSize: '0.85rem', lineHeight: '1.6'}}>{msg.content}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+      {/* SPECIALTIES (Split View like Implantodontia image) */}
+      <section className="specialties">
+        <div className="specialty-grid">
+          <div className="specialty-image-wrapper">
+            <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=1000&auto=format&fit=crop" alt="Sorriso Perfeito" />
+          </div>
+          <div className="specialty-content-wrapper">
+            <span className="hero-subtitle">Especialidade</span>
+            <h2>Implantodontia</h2>
+            <p>
+              Recuperar os dentes perdidos e voltar a sorrir: um impacto extremamente positivo na vida de qualquer pessoa. Além da aparência e autoestima, também agrega benefícios na saúde.
+            </p>
+            <ul className="check-list">
+              <li><CheckCircle2 size={18} className="icon-check" /> Implantes Cone Morse</li>
+              <li><CheckCircle2 size={18} className="icon-check" /> Cirurgias de Carga Imediata</li>
+              <li><CheckCircle2 size={18} className="icon-check" /> Levantamento de seio maxilar</li>
+              <li><CheckCircle2 size={18} className="icon-check" /> Sedação com médicos anestesistas</li>
+            </ul>
+            <button className="btn btn-purple" style={{ alignSelf: 'flex-start', marginTop: '1rem' }} onClick={scrollToForm}>
+              Consulte nosso especialista
+            </button>
           </div>
         </div>
-      )}
+      </section>
 
-      <div className={`hud-layout ${isTyping || isProcessingRAG ? "reactor-active" : ""}`}>
-        <Particles id="tsparticles" options={particlesOptions} init={async (engine) => { await loadSlim(engine); }} />
-
-        {/* LEFT COLUMN */}
-        <div className="hud-col-side left-panel">
+      {/* TEAM (Vertical Card with Overlay) */}
+      <section className="section team-section">
+        <div className="container">
+          <div className="animate-fade-in">
+            <span className="hero-subtitle">Corpo Clínico</span>
+            <h2>Excelência guiada por <br/><span className="text-italic text-gold">mestres.</span></h2>
+          </div>
           
-          <GlobalClock />
-
-          <div className="drive-sync-widget glass-panel-ui" style={{marginBottom: '20px'}}>
-            <div className="widget-row" style={{marginBottom: '15px'}}>
-              <div className="widget-ring" style={{width: '50px', height: '50px'}}>
-                <span className="widget-ring-text">CLOUD</span>
-              </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.8rem', letterSpacing: '1px'}}>MEDIA ASSETS</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.65rem'}}>G-DRIVE SYNC</span>
-              </div>
-            </div>
-            <input
-              type="text"
-              className="hud-input-floating"
-              placeholder="[ INSERIR URL DO DRIVE AQUI ]"
-              value={driveLink}
-              onChange={(e) => setDriveLink(e.target.value)}
-              style={{width: '100%', marginBottom: '5px'}}
-            />
-            {driveLink && (
-              <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--color-good)', letterSpacing: '1px'}}>
-                STATUS: ENCRYPTED LINK SYNCED
-              </div>
-            )}
-          </div>
-
-          <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
-
-          <div className="glass-panel-ui" style={{cursor: 'pointer', marginBottom: '20px'}} onClick={() => setShowHistoryModal(true)}>
-            <div className="widget-row">
-              <div className="widget-ring" style={{borderColor: '#fff', boxShadow: '0 0 15px #fff, inset 0 0 10px #fff'}}>
-                <span className="widget-ring-text" style={{color: '#fff'}}>LOGS</span>
-              </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>REQUEST HISTORY</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                  {messages.filter(m => m.role === 'user').length} COMMANDS ISSUED
-                </span>
+          <div className="team-grid animate-fade-in delay-200">
+            <div className="team-card">
+              {/* Using a placeholder doctor image */}
+              <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1000&auto=format&fit=crop" alt="Dr. Prieto" />
+              <div className="team-overlay">
+                <Plus size={32} color="white" style={{ marginBottom: '1rem' }} />
+                <h3>Dr. Prieto</h3>
+                <span className="cro">CRO-MS: 12345</span>
+                <p className="desc">
+                  Idealizador da clínica, é diretor clínico e avaliador. Especialista em Reabilitação Oral e Odontologia Estética com mais de 40 anos de dedicação à arte do sorriso.
+                </p>
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="cyber-line-vertical" style={{height: '50px', marginLeft: '50px'}}></div>
-
-          <div className="goals-widget glass-panel-ui" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-            <div className="widget-row">
-              <div className="widget-ring">
-                <span className="widget-ring-text">GOALS</span>
-              </div>
-              <div className="widget-content">
-                <span style={{color: '#fff', fontSize: '0.9rem', letterSpacing: '1px'}}>TODAY'S CAMPAIGN</span>
-                <span style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem'}}>
-                  {tasks.filter(t => t.completed).length} / {tasks.length} COMPLETED
-                </span>
-              </div>
+      {/* RESERVATION FORM (VIP Filter with Multi-select Pills) */}
+      <section id="reserva" className="section filter-section">
+        <div className="container">
+          <div className="filter-grid">
+            <div className="filter-content animate-fade-in">
+              <span className="hero-subtitle">Concierge</span>
+              <h2>Agendamento <br/><span className="text-italic">Exclusivo</span></h2>
+              <p style={{ marginTop: '2rem' }}>
+                Para garantir uma experiência sem interrupções e com foco total em você, nossos atendimentos são estritamente com hora marcada.
+              </p>
+              <p>
+                Preencha os dados e selecione <strong>uma ou mais opções</strong> de dias e horários. Nossa equipe entrará em contato para confirmar sua reserva.
+              </p>
             </div>
-            
-            <div className="tasks-list-container" style={{paddingLeft: '5px'}}>
-              {tasks.length === 0 ? (
-                <div style={{color: '#888', fontSize: '0.7rem', paddingLeft: '20px'}}>NO PENDING SCRIPTS</div>
-              ) : (
-                tasks.map(task => (
-                  <div key={task.id} className="task-item">
-                    <button className={`task-checkbox ${task.completed ? 'checked' : ''}`} onClick={() => toggleTask(task.id)}>
-                      {task.completed ? '✓' : ''}
-                    </button>
-                    <span className={`task-name ${task.completed ? 'done' : ''}`}>{task.name}</span>
-                    <button className="task-delete" onClick={() => deleteTask(task.id)}>X</button>
+
+            <div className="form-wrapper animate-fade-in delay-200">
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="nome">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    id="nome" 
+                    name="nome"
+                    className="form-control" 
+                    placeholder="Como prefere ser chamado(a)?"
+                    value={formState.nome}
+                    onChange={handleChange}
+                    required 
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label" htmlFor="telefone">WhatsApp</label>
+                  <input 
+                    type="tel" 
+                    id="telefone" 
+                    name="telefone"
+                    className="form-control" 
+                    placeholder="(67) 99999-9999"
+                    value={formState.telefone}
+                    onChange={handleChange}
+                    required 
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Selecione os dias (Múltipla escolha)</label>
+                  <div className="pill-group">
+                    {DIAS_DA_SEMANA.map(dia => (
+                      <button 
+                        type="button"
+                        key={dia}
+                        className={`pill-btn ${formState.dias.includes(dia) ? 'active' : ''}`}
+                        onClick={() => toggleSelection('dias', dia)}
+                      >
+                        {dia}
+                      </button>
+                    ))}
                   </div>
-                ))
-              )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Selecione o período (Múltipla escolha)</label>
+                  <div className="pill-group">
+                    {PERIODOS.map(periodo => (
+                      <button 
+                        type="button"
+                        key={periodo}
+                        className={`pill-btn ${formState.horarios.includes(periodo) ? 'active' : ''}`}
+                        onClick={() => toggleSelection('horarios', periodo)}
+                      >
+                        {periodo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '2rem' }}>
+                  Solicitar Reserva
+                </button>
+              </form>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* CENTER COLUMN */}
-        <div className="hud-col-center">
-          <div className="giant-reactor">
-            <div className="giant-ring ring-1"></div>
-            <div className="giant-ring ring-2"></div>
-            <div className="giant-ring ring-3"></div>
-            <div className="giant-ring ring-4"></div>
-            <div className="giant-ring ring-5"></div>
-            
-            <div className="orbit-container">
-              <div className="orbit-text orbit-1">LEADS_SYNC</div>
-              <div className="orbit-text orbit-2">FUNNEL_OPT</div>
-              <div className="orbit-text orbit-3">ROAS_MONITOR</div>
-              <div className="orbit-text orbit-4">ADS_ENGINE</div>
-            </div>
-
-            <div className={`ring-core-glow ${isTyping || isProcessingRAG ? 'thinking' : ''}`}></div>
-            <div className="matrix-code-container">
-              <div className="matrix-code-content">
-                {Array.from({length: 20}).map((_, i) => (
-                  <span key={i}>0x{(Math.random()*100000).toString(16).substring(0,4)} INIT SYS<br/>SYS.CALL.{Math.floor(Math.random()*999)}<br/></span>
-                ))}
-              </div>
-            </div>
-
-            {/* KNOWLEDGE CONNECTED TO REACTOR */}
-            <KnowledgeCore pdfFiles={pdfFiles} fileInputRef={fileInputRef} setShowPdfModal={setShowPdfModal} />
-            <input type="file" accept=".pdf,.md,.txt" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileUpload} />
-          </div>
-
-          <div className="chat-container-floating">
-            <div className="chat-history-transparent">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`chat-msg ${msg.role}`} style={msg.role === 'system' ? {color: '#666', fontSize: '0.7rem'} : {}}>
-                  {msg.role === 'user' ? (
-                    <div>
-                      <span style={{color: '#888'}}>[USER]: </span>{msg.content}
-                      {msg.attachment && (
-                        <div style={{marginTop: '5px', fontSize: '0.65rem', color: 'var(--hud-cyan-dim)'}}>
-                          [ATTACHMENT: {msg.attachment.name}]
-                          {msg.attachment.type === 'image' && (
-                            <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} alt="" style={{display:'block', maxWidth:'100px', maxHeight:'80px', marginTop:'4px', border:'1px solid var(--hud-cyan-dim)', borderRadius:'4px'}} />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ) : msg.role === 'ai' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  ) : msg.content}
-                </div>
-              ))}
-              {isProcessingRAG && (
-                <div className="chat-msg system" style={{color: 'var(--hud-cyan)', fontSize: '0.7rem'}}>
-                  [ VECTORIZER ]: GENERATING EMBEDDINGS... {ragProgress.current} / {ragProgress.total} CHUNKS
-                </div>
-              )}
-              {isTyping && !isProcessingRAG && <div className="chat-msg ai" style={{animation: 'blink 1s infinite'}}>_ PROCESSANDO...</div>}
-              <div ref={messagesEndRef} />
-            </div>
-            
-            {chatAttachment && (
-              <div style={{padding: '5px 10px', fontSize: '0.65rem', color: 'var(--hud-cyan)', background: 'rgba(0,229,255,0.05)', borderTop: '1px solid rgba(0,229,255,0.2)', display: 'flex', alignItems: 'center', gap: '10px'}}>
-                <span>[ATTACHED: {chatAttachment.name}]</span>
-                <button onClick={() => setChatAttachment(null)} style={{background: 'none', border: 'none', color: '#f00', cursor: 'pointer', fontSize: '0.7rem'}}>REMOVE</button>
-              </div>
-            )}
-
-            <form onSubmit={handleSend} className="chat-input-wrapper">
-              <button type="button" className="hud-btn-icon" onClick={() => chatFileInputRef.current?.click()} title="Attach file">
-                [+]
-              </button>
-              <input type="file" accept="image/*,.pdf,.txt,.md" style={{display:'none'}} ref={chatFileInputRef} onChange={handleChatFileAttach} />
-              <textarea
-                className="hud-input-floating hud-textarea"
-                placeholder="[ INSIRA O COMANDO ] Enter=nova linha | Shift+Enter=enviar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isTyping}
-                rows={1}
-              />
-              <button type="button" className={`hud-btn-icon ${isListening ? 'listening' : ''}`} onClick={toggleVoice} title="Voice command">
-                {isListening ? '[ON]' : '[MIC]'}
-              </button>
-              <button type="submit" className="hud-btn-floating" disabled={(!input.trim() && !chatAttachment) || isTyping}>
-                ENGAGE
-              </button>
-            </form>
-          </div>
+      {/* INFINITE CAROUSEL (Photos and Videos placeholder) */}
+      <section className="carousel-section">
+        <div className="container" style={{ paddingBottom: '3rem', textAlign: 'center' }}>
+          <span className="hero-subtitle">Ambiente & Experiência</span>
+          <h2>Sinta-se em <span className="text-italic text-gold">casa.</span></h2>
         </div>
+        
+        <div className="carousel-track">
+          {/* We duplicate the items to create the infinite loop effect seamlessly */}
+          {[...Array(2)].map((_, i) => (
+            <React.Fragment key={i}>
+              <div className="carousel-item">
+                <img src="https://images.unsplash.com/photo-1606811841689-23dfddce3e95?q=80&w=400&auto=format&fit=crop" alt="Clínica" />
+              </div>
+              <div className="carousel-item">
+                <img src="https://images.unsplash.com/photo-1598256989800-fea5ce5146f2?q=80&w=400&auto=format&fit=crop" alt="Ambiente" />
+              </div>
+              <div className="carousel-item">
+                {/* Simulated video cover */}
+                <img src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=400&auto=format&fit=crop" alt="Paciente" />
+              </div>
+              <div className="carousel-item">
+                <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?q=80&w=400&auto=format&fit=crop" alt="Sorriso" />
+              </div>
+              <div className="carousel-item">
+                <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400&auto=format&fit=crop" alt="Tecnologia" />
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      </section>
 
-        {/* RIGHT COLUMN */}
-        <div className="hud-col-side right-panel" style={{alignItems: 'flex-end'}}>
+      {/* CONTACT (Dark Honeycomb Cards) */}
+      <section className="section contact-section">
+        <div className="container">
+          <span className="hero-subtitle">Fale Conosco</span>
+          <h2>Pode contar com a <span className="text-italic">gente ;)</span></h2>
+          <p style={{ margin: '0 auto', textAlign: 'center' }}>
+            Nossa equipe está pronta para receber você e ajudar a deixar o seu sorriso sempre bonito.<br/>
+            Para seu maior conforto, atendemos em horários estendidos e também aos sábados.
+          </p>
           
-          <SpotifyWidget />
-
-          <div style={{marginTop: '30px', textAlign: 'right', fontSize: '0.8rem', lineHeight: '1.8'}}>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>YOUTUBE</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>TIKTOK</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div><span className="pdf-dot" style={{display: 'inline-block', marginRight: '10px'}}></span> <span style={{color: '#fff'}}>INSTAGRAM</span> <span style={{color: '#888'}}>SYNCED</span></div>
-            <div style={{color: 'var(--hud-cyan-dim)', marginTop: '10px', textTransform: 'lowercase', letterSpacing: '1px'}}>mark's system</div>
-          </div>
-
-          <div style={{marginTop: '40px', textAlign: 'right', fontSize: '0.8rem'}}>
-            <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px'}}>
-              &gt; BEST_POSTING_TIMES
+          <div className="contact-grid">
+            <div className="contact-card">
+              <Clock size={32} className="contact-icon" />
+              <h4>Horários</h4>
+              <p>Segunda a sexta: 08h às 18h</p>
+              <p>Sábado: 08h às 12h</p>
             </div>
-            <div style={{color: '#fff', lineHeight: '1.6'}}>
-              SEG, TER, QUA <br />
-              <span style={{color: 'var(--hud-cyan)'}}>18:00 - 21:00</span>
+            <div className="contact-card">
+              <MessageSquare size={32} className="contact-icon" />
+              <h4>Contato</h4>
+              <p>(67) 3382-7373</p>
+              <p>(67) 99830-0077</p>
             </div>
-          </div>
-
-          <div style={{flexGrow: 1}}></div>
-
-          <div className="atmosphere-container">
-            <div className="atmosphere-label">
-              <div style={{color: '#888', textTransform: 'lowercase'}}>market heat</div>
-              <div style={{color: 'var(--hud-cyan-dim)', fontSize: '0.7rem'}}>Sentiment Analysis</div>
-            </div>
-            <div className="atmosphere-circle">
-              94<span style={{fontSize: '1rem', verticalAlign: 'top', marginTop: '10px'}}>%</span>
+            <div className="contact-card">
+              <MapPin size={32} className="contact-icon" />
+              <h4>Estamos aqui</h4>
+              <p>Rua Exemplo, 100 - Bairro Nobre</p>
+              <p>Campo Grande - MS, 79000-000</p>
             </div>
           </div>
-
+          
+          <div style={{ textAlign: 'center', marginTop: '4rem' }}>
+            <button className="btn btn-purple" onClick={scrollToForm}>
+              Agende Agora
+            </button>
+          </div>
         </div>
+      </section>
 
-      </div>
-    </div>
+      {/* FOOTER */}
+      <footer className="footer">
+        <div className="container">
+          <div className="footer-bottom">
+            <p>&copy; {new Date().getFullYear()} Prieto & Prieto Odontologia. Todos os direitos reservados.</p>
+            <p>Design por Mark (AGY)</p>
+          </div>
+        </div>
+      </footer>
+    </>
   );
 }
 
